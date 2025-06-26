@@ -28,6 +28,7 @@ exports.register = async (req, res) => {
       .status(201)
       .json({ message: "تم التسجيل بنجاح", userId: user._id });
   } catch (err) {
+    console.log(err);
     return res.status(500).json({ message: "حدث خطأ أثناء التسجيل" });
   }
 };
