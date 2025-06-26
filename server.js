@@ -20,12 +20,6 @@ mongoose
     process.exit(1);
   });
 
-app.use(express.json());
-app.use("/api/auth", require("./routes/auth"));
-
-app.get("/", (req, res) => {
-  res.send("Hello from Express!");
-});
 const cors = require("cors");
 
 // Allow all origins (you can customize later)
@@ -34,6 +28,12 @@ app.use(
     origin: "http://localhost:5174",
   })
 );
+app.use(express.json());
+app.use("/api/auth", require("./routes/auth"));
+
+app.get("/", (req, res) => {
+  res.send("Hello from Express!");
+});
 
 // Remove app.listen() for Vercel compatibility
 module.exports = app;
