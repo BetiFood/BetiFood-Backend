@@ -5,12 +5,12 @@ const { MongoClient } = require("mongodb");
 const app = express();
 const port = 3000;
 
-const url = process.env.MONGODB_URL;
+const uri = process.env.MONGODB_URI;
 const dbName = process.env.DB_NAME;
 
 async function connectToMongoDB() {
   try {
-    const client = new MongoClient(url);
+    const client = new MongoClient(uri);
     await client.connect();
     await client.db(dbName).command({ ping: 1 });
     console.log("Connected to MongoDB");
