@@ -26,6 +26,14 @@ app.use("/api/auth", require("./routes/auth"));
 app.get("/", (req, res) => {
   res.send("Hello from Express!");
 });
+const cors = require("cors");
+
+// Allow all origins (you can customize later)
+app.use(
+  cors({
+    origin: "http://localhost:5174",
+  })
+);
 
 // Remove app.listen() for Vercel compatibility
 module.exports = app;
