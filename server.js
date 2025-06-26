@@ -1,6 +1,7 @@
 require("dotenv").config();
 const express = require("express");
 const { MongoClient } = require("mongodb");
+const mongoose = require("mongoose");
 
 const app = express();
 const port = 3000;
@@ -8,20 +9,10 @@ const port = 3000;
 const uri = process.env.MONGODB_URI;
 const dbName = process.env.DB_NAME;
 
-async function connectToMongoDB() {
-  try {
-    const client = new MongoClient(uri);
-    await client.connect();
-    await client.db(dbName).command({ ping: 1 });
-    console.log("Connected to MongoDB");
-    client.close();
-  } catch (err) {
-    console.error("Failed to connect to MongoDB:", err);
-    process.exit(1);
-  }
-}
-
-connectToMongoDB();
+mongoose
+  .connect(process.env.MONGODB_URI, { dbName: process.env.DB_NAME })
+  .then(() => console.log("Connected to MongoDB"))
+  .catch((err) => console.error("Failed to connect to MongoDB:", err));
 
 app.use(express.json());
 app.use("/api/auth", require("./routes/auth"));
