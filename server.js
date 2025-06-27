@@ -10,7 +10,6 @@ const port = 3000;
 const uri = process.env.MONGODB_URI;
 const dbName = process.env.DB_NAME;
 
-
 dotenv.config();
 // Connect to MongoDB
 connectDB();
@@ -38,6 +37,6 @@ app.get("/", (req, res) => {
 app.use(errorHandler);
 
 // Error handling middleware
-app.listen(port, () => console.log(`listening on http://localhost:${port}`));
+// app.listen(port, () => console.log(`listening on http://localhost:${port}`));
 // Remove app.listen() for Vercel compatibility
 module.exports = app;
