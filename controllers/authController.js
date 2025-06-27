@@ -29,27 +29,6 @@ exports.register = asyncHandler(async (req, res) => {
     return res.status(400).json({ message: "البريد الإلكتروني مستخدم بالفعل" });
   }
 
-  // Generate email verification token
-  const verificationToken = jwt.sign(
-    { userId: user._id },
-    process.env.JWT_SECRET,
-    { expiresIn: "1d" }
-  );
-  // Prepare to send verification email
-  const verificationUrl = `https://beti-food-backend.vercel.app/api/auth/verify?token=${verificationToken}`;
-  const emailSent = await sendEmail({
-    to: email,
-    subject: "Email Verification",
-    html: generateActivationEmail(verificationUrl),
-  });
-
-  if (!emailSent) {
-    return res.status(500).json({
-      message:
-        "فشل إرسال البريد الإلكتروني. تحقق من إعدادات البريد الإلكتروني.",
-    });
-  }
-
   // Hash password
   const hashedPassword = await bcrypt.hash(password, 10);
   // Create user
@@ -62,34 +41,30 @@ exports.register = asyncHandler(async (req, res) => {
     role,
   });
   await user.save();
-  // Configure nodemailer transporter (example using Gmail, replace with your SMTP settings)
-  // const transporter = nodemailer.createTransport({
-  //   service: "gmail",
-  //   auth: {
-  //     user: process.env.EMAIL_USER,
-  //     pass: process.env.EMAIL_PASS,
-  //   },
-  // });
-  // try {
-  // Send mail
-  // await transporter.sendMail({
-  //   from: process.env.EMAIL_USER,
-  //   to: user.email,
-  //   subject: "Email Verification",
-  //   html: `<p>Please verify your email by clicking the link below:</p><a href="${verificationUrl}">${verificationUrl}</a>`,
-  // });
-
-  // } catch (emailErr) {
-  //   // If email sending fails, delete the user to avoid orphaned accounts
-  //   await User.findByIdAndDelete(user._id);
-  //   return res.status(500).json({
-  //     message:
-  //       "فشل إرسال البريد الإلكتروني. تحقق من إعدادات البريد الإلكتروني.",
-  //     error: emailErr.message,
-  //   });
-  // }
+  // Generate email verification token after user is saved
+  const verificationToken = jwt.sign(
+    { userId: user._id },
+    process.env.JWT_SECRET,
+    { expiresIn: "1d" }
+  );
+  // Prepare to send verification email
+  const verificationUrl = `https://beti-food-backend.vercel.app/api/auth/verify?token=${verificationToken}`;
+  try {
+    await sendEmail({
+      to: email,
+      subject: "تفعيل البريد الإلكتروني",
+      html: generateActivationEmail(verificationUrl),
+    });
+  } catch (emailErr) {
+    await User.findByIdAndDelete(user._id);
+    return res.status(500).json({
+      message:
+        "فشل إرسال البريد الإلكتروني. تحقق من إعدادات البريد الإلكتروني.",
+      error: emailErr.message,
+    });
+  }
   return res.status(201).json({
-    message: "تم التسجيل بنجاح",
+    message: "تم التسجيل بنجاح. يرجى التحقق من بريدك الإلكتروني لتفعيل الحساب.",
     userId: user._id,
   });
 });
@@ -134,13 +109,13 @@ exports.login = async (req, res) => {
 exports.verifyEmail = async (req, res) => {
   const token = req.query.token;
   if (!token) {
-    return res.status(400).json({ message: "Verification token is missing." });
+    return res.status(400).json({ message: "رمز التحقق مفقود." });
   }
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const user = await User.findById(decoded.userId);
     if (!user) {
-      return res.status(400).json({ message: "User not found." });
+      return res.status(400).json({ message: "المستخدم غير موجود." });
     }
     if (!user.isVerified) {
       user.isVerified = true;
@@ -149,6 +124,8 @@ exports.verifyEmail = async (req, res) => {
     // Redirect to frontend login page
     return res.redirect("http://localhost:5174/login");
   } catch (err) {
-    return res.status(400).json({ message: "Invalid or expired token." });
+    return res
+      .status(400)
+      .json({ message: "رمز التحقق غير صالح أو منتهي الصلاحية." });
   }
 };
