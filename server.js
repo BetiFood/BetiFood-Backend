@@ -1,26 +1,19 @@
-require("dotenv").config();
+const dotenv = require("dotenv");
 const express = require("express");
-const mongoose = require("mongoose");
-
+const cors = require("cors");
+const errorHandler = require("./middleware/errorhandler.middleware.js");
+const connectDB = require("./config/connection.js");
+const authRoutes = require("./routes/auth.js");
 const app = express();
 const port = 3000;
 
 const uri = process.env.MONGODB_URI;
 const dbName = process.env.DB_NAME;
 
-mongoose
-  .connect(process.env.MONGODB_URI, {
-    dbName: process.env.DB_NAME,
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-  })
-  .then(() => console.log("Connected to MongoDB"))
-  .catch((err) => {
-    console.error("Failed to connect to MongoDB:", err);
-    process.exit(1);
-  });
 
-const cors = require("cors");
+dotenv.config();
+// Connect to MongoDB
+connectDB();
 
 // Allow all origins (you can customize later)
 app.use(
@@ -29,12 +22,22 @@ app.use(
   })
 );
 app.use(express.json());
-app.use("/api/auth", require("./routes/auth"));
+app.use("/api/auth", authRoutes);
 app.use("/api/meals", require("./routes/meals"));
 
 app.get("/", (req, res) => {
   res.send("Hello from Express!");
 });
 
+// Handle errors
+// app.use((error, req, res, next) => {
+
+//   console.error("Error occurred:", error);
+//   res.status(500).json({ message: "Internal Server Error" });
+// });
+app.use(errorHandler);
+
+// Error handling middleware
+app.listen(port, () => console.log(`listening on http://localhost:${port}`));
 // Remove app.listen() for Vercel compatibility
 module.exports = app;

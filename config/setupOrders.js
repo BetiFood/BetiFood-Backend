@@ -1,6 +1,6 @@
 require("dotenv").config();
 const mongoose = require("mongoose");
-const Order = require("./models/Order");
+const Order = require("../models/Order");
 
 // Generate sample ObjectIds for client, cook, and meal
 const clientId = new mongoose.Types.ObjectId();
