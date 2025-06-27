@@ -61,13 +61,13 @@ exports.register = async (req, res) => {
       await User.findByIdAndDelete(user._id);
       return res.status(500).json({
         message:
-          "فشل إرسال البريد الإلكتروني. تحقق من إعدادات البريد الإلكتروني.",
+          "فشل إرسال البريد الإلكتروني. تحقق من إعدادات البريد الإلكتروني",
         error: emailErr.message,
       });
     }
     return res.status(201).json({
       message:
-        "تم التسجيل بنجاح. يرجى التحقق من بريدك الإلكتروني لتفعيل الحساب.",
+        "تم التسجيل بنجاح. يرجى التحقق من بريدك الإلكتروني لتفعيل الحساب",
       userId: user._id,
     });
   } catch (err) {
@@ -117,13 +117,13 @@ exports.login = async (req, res) => {
 exports.verifyEmail = async (req, res) => {
   const token = req.query.token;
   if (!token) {
-    return res.status(400).json({ message: "رمز التحقق مفقود." });
+    return res.status(400).json({ message: "رمز التحقق مفقود" });
   }
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const user = await User.findById(decoded.userId);
     if (!user) {
-      return res.status(400).json({ message: "المستخدم غير موجود." });
+      return res.status(400).json({ message: "المستخدم غير موجود" });
     }
     if (!user.isVerified) {
       user.isVerified = true;
@@ -134,6 +134,6 @@ exports.verifyEmail = async (req, res) => {
   } catch (err) {
     return res
       .status(400)
-      .json({ message: "رمز التحقق غير صالح أو منتهي الصلاحية." });
+      .json({ message: "رمز التحقق غير صالح أو منتهي الصلاحية" });
   }
 };
