@@ -1,30 +1,87 @@
 const Meal = require("../models/Meal");
 
-// Add a new meal (only for cooks)
 async function addMeal(req, res) {
   try {
-    const { name, description, price, category, image } = req.body;
+    const { name, description, price, category, quantity } = req.body;
     const cookId = req.user._id;
-    // Ensure image is always an array
-    let images = [];
-    if (Array.isArray(image)) {
-      images = image;
-    } else if (typeof image === "string") {
-      images = [image];
+
+    if (!name || !description || !price || !category || !quantity) {
+      return res.status(400).json({ message: "يجب إدخال جميع الحقول المطلوبة" });
     }
+
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ message: "يجب رفع صورة واحدة على الأقل" });
+    }
+
+    const images = req.files.map((file) => file.filename);
+
     const meal = await Meal.create({
       name,
       description,
       price,
       category,
+      quantity,
       cookId,
       image: images,
-      createdAt: new Date(),
     });
-    res.status(201).json({ message: "تم إضافة الوجبة بنجاح", meal });
+
+    res.status(201).json({ message: "✅ تم إضافة الوجبة بنجاح", meal });
   } catch (err) {
-    res.status(500).json({ message: "فشل إضافة الوجبة", error: err.message });
+    res.status(500).json({ message: "❌ فشل إضافة الوجبة", error: err.message });
   }
 }
 
-module.exports = { addMeal };
+async function getMeals(req, res) {
+  try {
+    const { category, maxPrice } = req.query;
+    const filter = {};
+    if (category) filter.category = category;
+    if (maxPrice) filter.price = { $lte: Number(maxPrice) };
+
+    const meals = await Meal.find(filter).populate("cookId", "name email");
+    res.status(200).json(meals);
+  } catch (err) {
+    res.status(500).json({ message: "❌ فشل في جلب الوجبات", error: err.message });
+  }
+}
+
+async function updateMeal(req, res) {
+  try {
+    const meal = await Meal.findById(req.params.id);
+    if (!meal) return res.status(404).json({ message: "❌ الوجبة غير موجودة" });
+
+    if (meal.cookId.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: "❌ غير مصرح لك بتعديل هذه الوجبة" });
+    }
+
+    Object.assign(meal, req.body);
+    await meal.save();
+
+    res.status(200).json({ message: "✅ تم تحديث الوجبة", meal });
+  } catch (err) {
+    res.status(500).json({ message: "❌ فشل في التحديث", error: err.message });
+  }
+}
+
+async function deleteMeal(req, res) {
+  try {
+    const meal = await Meal.findById(req.params.id);
+    if (!meal) return res.status(404).json({ message: "❌ الوجبة غير موجودة" });
+
+    if (meal.cookId.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: "❌ غير مصرح لك بحذف هذه الوجبة" });
+    }
+
+    await meal.deleteOne();
+    res.status(200).json({ message: "✅ تم حذف الوجبة" });
+  } catch (err) {
+    res.status(500).json({ message: "❌ فشل في الحذف", error: err.message });
+  }
+}
+
+module.exports = {
+  addMeal,
+  getMeals,
+  updateMeal,
+  deleteMeal,
+};
