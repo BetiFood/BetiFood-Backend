@@ -57,20 +57,32 @@ exports.register = async (req, res) => {
         pass: process.env.EMAIL_PASS,
       },
     });
-    // Send mail
-    await transporter.sendMail({
-      from: process.env.EMAIL_USER,
-      to: user.email,
-      subject: "Email Verification",
-      html: `<p>Please verify your email by clicking the link below:</p><a href="${verificationUrl}">${verificationUrl}</a>`,
-    });
+    try {
+      // Send mail
+      await transporter.sendMail({
+        from: process.env.EMAIL_USER,
+        to: user.email,
+        subject: "Email Verification",
+        html: `<p>Please verify your email by clicking the link below:</p><a href="${verificationUrl}">${verificationUrl}</a>`,
+      });
+    } catch (emailErr) {
+      // If email sending fails, delete the user to avoid orphaned accounts
+      await User.findByIdAndDelete(user._id);
+      return res.status(500).json({
+        message:
+          "فشل إرسال البريد الإلكتروني. تحقق من إعدادات البريد الإلكتروني.",
+        error: emailErr.message,
+      });
+    }
     return res.status(201).json({
       message: "تم التسجيل بنجاح",
       userId: user._id,
     });
   } catch (err) {
     console.log(err);
-    return res.status(500).json({ message: "حدث خطأ أثناء التسجيل" });
+    return res
+      .status(500)
+      .json({ message: "حدث خطأ أثناء التسجيل", error: err.message });
   }
 };
 
