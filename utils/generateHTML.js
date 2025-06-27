@@ -1,11 +1,11 @@
 function generateActivationEmail(link) {
   return `
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Activate Your BetiFood Account</title>
+    <title>تفعيل حسابك في بيتي فود</title>
 </head>
 <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f7f7f7;">
     <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0">
@@ -15,28 +15,28 @@ function generateActivationEmail(link) {
                     <!-- Header -->
                     <tr>
                         <td align="center" style="padding: 30px 20px 20px 20px; border-bottom: 1px solid #eaeaea;">
-                            <img src="https://raw.githubusercontent.com/Ali-Fathy/BetiFood-Backend/main/assets/with%20bg.svg" alt="BetiFood Logo" width="80" style="margin-bottom: 16px;" />
-                            <h1 style="margin: 10px 0 5px 0; font-size: 24px; color: #ff7043;">BetiFood</h1>
+                            <img src="https://beti-food-backend.vercel.app/with%20bg.svg" alt="BetiFood Logo" width="80" style="margin-bottom: 16px;" />
+                            <h1 style="margin: 10px 0 5px 0; font-size: 24px; color: #ff7043;">بيتي فود</h1>
                         </td>
                     </tr>
                     <!-- Main Content -->
                     <tr>
                         <td align="center" style="padding: 40px 30px;">
-                            <h2 style="margin: 0 0 20px 0; color: #333333; font-size: 20px; text-align: center;">Activate Your BetiFood Account</h2>
+                            <h2 style="margin: 0 0 20px 0; color: #333333; font-size: 20px; text-align: center;">تفعيل حسابك في بيتي فود</h2>
                             <p style="margin: 0 0 25px 0; font-size: 16px; line-height: 24px; color: #555555; text-align: center;">
-                                Thank you for registering with BetiFood. Please click the button below to verify your email address and start using your account.
+                                شكرًا لتسجيلك في بيتي فود. يرجى الضغط على الزر أدناه لتفعيل بريدك الإلكتروني والبدء في استخدام حسابك.
                             </p>
                             <!-- CTA Button -->
                             <table role="presentation" border="0" cellspacing="0" cellpadding="0" width="100%">
                                 <tr>
                                     <td align="center" style="padding: 20px 0;">
-                                        <a href="${link}" target="_blank" style="display: inline-block; padding: 15px 30px; font-size: 16px; font-weight: bold; color: #ffffff; background: #ff7043; text-decoration: none; border-radius: 4px; text-align: center;">Activate Account</a>
+                                        <a href="${link}" target="_blank" style="display: inline-block; padding: 15px 30px; font-size: 16px; font-weight: bold; color: #ffffff; background: #ff7043; text-decoration: none; border-radius: 4px; text-align: center;">تفعيل الحساب</a>
                                     </td>
                                 </tr>
                             </table>
                             <!-- Fallback Text Link -->
                             <p style="margin: 25px 0 0 0; font-size: 14px; line-height: 21px; color: #777777; text-align: center;">
-                                If the button doesn't work, copy and paste this link into your browser:<br>
+                                إذا لم يعمل الزر، انسخ الرابط التالي والصقه في متصفحك:<br>
                                 <a href="${link}" style="color: #ff7043; text-decoration: underline; word-break: break-all;">${link}</a>
                             </p>
                         </td>
@@ -45,14 +45,14 @@ function generateActivationEmail(link) {
                     <tr>
                         <td align="center" style="padding: 20px 30px 40px 30px;">
                             <p style="margin: 0; font-size: 14px; line-height: 21px; color: #777777; text-align: center;">
-                                If you didn't request this activation, please ignore this email.
+                                إذا لم تطلب هذا التفعيل، يرجى تجاهل هذه الرسالة.
                             </p>
                         </td>
                     </tr>
                     <!-- Footer -->
                     <tr>
                         <td align="center" style="padding: 20px; background-color: #f7f7f7; border-radius: 0 0 8px 8px;">
-                            <p style="margin: 0; font-size: 12px; line-height: 18px; color: #999999;">&copy; ${new Date().getFullYear()} BetiFood. All rights reserved.</p>
+                            <p style="margin: 0; font-size: 12px; line-height: 18px; color: #999999;">&copy; ${new Date().getFullYear()}  جميع الحقوق محفوظة بيتي فود</p>
                         </td>
                     </tr>
                 </table>
