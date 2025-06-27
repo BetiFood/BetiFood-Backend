@@ -36,7 +36,9 @@ app.get("/", (req, res) => {
 // });
 app.use(errorHandler);
 
-// Error handling middleware
-// app.listen(port, () => console.log(`listening on http://localhost:${port}`));
+// Only listen if not running on Vercel (i.e., local development)
+if (!process.env.VERCEL) {
+  app.listen(port, () => console.log(`listening on http://localhost:${port}`));
+}
 // Remove app.listen() for Vercel compatibility
 module.exports = app;
