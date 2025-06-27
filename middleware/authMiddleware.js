@@ -15,4 +15,11 @@ function verifyToken(req, res, next) {
   }
 }
 
-module.exports = verifyToken;
+function requireCookRole(req, res, next) {
+  if (req.user && req.user.role === "cook") {
+    return next();
+  }
+  return res.status(403).json({ message: "يجب أن تكون طباخًا لإضافة وجبة" });
+}
+
+module.exports = { verifyToken, requireCookRole };

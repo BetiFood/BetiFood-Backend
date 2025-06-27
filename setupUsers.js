@@ -12,7 +12,8 @@ const users = [
     password: "hashed_password",
     phone: "01012345678",
     address: "Cairo, Egypt",
-    role: "user",
+    role: "client",
+    isVerified: false,
     createdAt: new Date(),
   },
   {
@@ -22,6 +23,7 @@ const users = [
     phone: "01098765432",
     address: "Giza, Egypt",
     role: "cook",
+    isVerified: false,
     createdAt: new Date(),
   },
   {
@@ -31,6 +33,7 @@ const users = [
     phone: "01122233445",
     address: "Heliopolis, Cairo",
     role: "delivery",
+    isVerified: false,
     createdAt: new Date(),
   },
   {
@@ -40,6 +43,7 @@ const users = [
     phone: "01200000000",
     address: "Nasr City, Cairo",
     role: "admin",
+    isVerified: false,
     createdAt: new Date(),
   },
 ];
