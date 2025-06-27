@@ -1,90 +1,96 @@
 const User = require("../models/User");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
-const nodemailer = require("nodemailer");
+const { asyncHandler } = require("../utils/asyncHandler.js");
+const { sendEmail } = require("../utils/sendMail.js");
+const { generateActivationEmail } = require("../utils/generateHTML.js");
 
 // Recommended password regex: Minimum 8 characters, at least one uppercase, one lowercase, one number, and one special character
 const passwordRegex =
   /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]).{8,}$/;
 
-exports.register = async (req, res) => {
-  try {
-    const { name, email, password, confirmPassword, phone, address, role } =
-      req.body;
-    // Confirm password match
-    if (password !== confirmPassword) {
-      return res.status(400).json({ message: "Passwords do not match" });
-    }
-    // Password validation
-    if (!passwordRegex.test(password)) {
-      return res.status(400).json({
-        message:
-          "كلمة المرور يجب أن تكون 8 أحرف على الأقل وتحتوي على حرف كبير وحرف صغير ورقم وحرف خاص",
-      });
-    }
-    // Check if email already exists
-    const existingUser = await User.findOne({ email });
-    if (existingUser) {
-      return res
-        .status(400)
-        .json({ message: "البريد الإلكتروني مستخدم بالفعل" });
-    }
-    // Hash password
-    const hashedPassword = await bcrypt.hash(password, 10);
-    // Create user
-    const user = new User({
-      name,
-      email,
-      password: hashedPassword,
-      phone,
-      address,
-      role,
-    });
-    await user.save();
-    // Generate email verification token
-    const verificationToken = jwt.sign(
-      { userId: user._id },
-      process.env.JWT_SECRET,
-      { expiresIn: "1d" }
-    );
-    // Prepare to send verification email
-    const verificationUrl = `https://yourdomain.com/api/auth/verify?token=${verificationToken}`;
-    // Configure nodemailer transporter (example using Gmail, replace with your SMTP settings)
-    const transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS,
-      },
-    });
-    try {
-      // Send mail
-      await transporter.sendMail({
-        from: process.env.EMAIL_USER,
-        to: user.email,
-        subject: "Email Verification",
-        html: `<p>Please verify your email by clicking the link below:</p><a href="${verificationUrl}">${verificationUrl}</a>`,
-      });
-    } catch (emailErr) {
-      // If email sending fails, delete the user to avoid orphaned accounts
-      await User.findByIdAndDelete(user._id);
-      return res.status(500).json({
-        message:
-          "فشل إرسال البريد الإلكتروني. تحقق من إعدادات البريد الإلكتروني.",
-        error: emailErr.message,
-      });
-    }
-    return res.status(201).json({
-      message: "تم التسجيل بنجاح",
-      userId: user._id,
-    });
-  } catch (err) {
-    console.log(err);
-    return res
-      .status(500)
-      .json({ message: "حدث خطأ أثناء التسجيل", error: err.message });
+exports.register = asyncHandler(async (req, res) => {
+  const { name, email, password, confirmPassword, phone, address, role } =
+    req.body;
+  // Confirm password match
+  if (password !== confirmPassword) {
+    return res.status(400).json({ message: "Passwords do not match" });
   }
-};
+  // Password validation
+  if (!passwordRegex.test(password)) {
+    return res.status(400).json({
+      message:
+        "كلمة المرور يجب أن تكون 8 أحرف على الأقل وتحتوي على حرف كبير وحرف صغير ورقم وحرف خاص",
+    });
+  }
+  // Check if email already exists
+  const existingUser = await User.findOne({ email });
+  if (existingUser) {
+    return res.status(400).json({ message: "البريد الإلكتروني مستخدم بالفعل" });
+  }
+
+  // Generate email verification token
+  const verificationToken = jwt.sign({ email }, process.env.JWT_SECRET, {
+    expiresIn: "1d",
+  });
+  // Prepare to send verification email
+  const verificationUrl = `https://yourdomain.com/api/auth/verify?token=${verificationToken}`;
+  const emailSent = await sendEmail({
+    to: email,
+    subject: "Email Verification",
+    html: generateActivationEmail(verificationUrl),
+  });
+
+  if (!emailSent) {
+    return res.status(500).json({
+      message:
+        "فشل إرسال البريد الإلكتروني. تحقق من إعدادات البريد الإلكتروني.",
+    });
+  }
+
+  // Hash password
+  const hashedPassword = await bcrypt.hash(password, 10);
+  // Create user
+  const user = new User({
+    name,
+    email,
+    password: hashedPassword,
+    phone,
+    address,
+    role,
+  });
+  await user.save();
+  // Configure nodemailer transporter (example using Gmail, replace with your SMTP settings)
+  // const transporter = nodemailer.createTransport({
+  //   service: "gmail",
+  //   auth: {
+  //     user: process.env.EMAIL_USER,
+  //     pass: process.env.EMAIL_PASS,
+  //   },
+  // });
+  // try {
+  // Send mail
+  // await transporter.sendMail({
+  //   from: process.env.EMAIL_USER,
+  //   to: user.email,
+  //   subject: "Email Verification",
+  //   html: `<p>Please verify your email by clicking the link below:</p><a href="${verificationUrl}">${verificationUrl}</a>`,
+  // });
+
+  // } catch (emailErr) {
+  //   // If email sending fails, delete the user to avoid orphaned accounts
+  //   await User.findByIdAndDelete(user._id);
+  //   return res.status(500).json({
+  //     message:
+  //       "فشل إرسال البريد الإلكتروني. تحقق من إعدادات البريد الإلكتروني.",
+  //     error: emailErr.message,
+  //   });
+  // }
+  return res.status(201).json({
+    message: "تم التسجيل بنجاح",
+    userId: user._id,
+  });
+});
 
 exports.login = async (req, res) => {
   try {
@@ -130,7 +136,7 @@ exports.verifyEmail = async (req, res) => {
   }
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const user = await User.findById(decoded.userId);
+    const user = await User.findOne({ email: decoded.email });
     if (!user) {
       return res.status(400).json({ message: "User not found." });
     }
