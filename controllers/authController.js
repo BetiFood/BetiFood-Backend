@@ -30,9 +30,11 @@ exports.register = asyncHandler(async (req, res) => {
   }
 
   // Generate email verification token
-  const verificationToken = jwt.sign({ email }, process.env.JWT_SECRET, {
-    expiresIn: "1d",
-  });
+  const verificationToken = jwt.sign(
+    { userId: user._id },
+    process.env.JWT_SECRET,
+    { expiresIn: "1d" }
+  );
   // Prepare to send verification email
   const verificationUrl = `https://beti-food-backend.vercel.app/api/auth/verify?token=${verificationToken}`;
   const emailSent = await sendEmail({
