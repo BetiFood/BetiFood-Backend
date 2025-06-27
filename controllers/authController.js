@@ -34,7 +34,7 @@ exports.register = asyncHandler(async (req, res) => {
     expiresIn: "1d",
   });
   // Prepare to send verification email
-  const verificationUrl = `https://yourdomain.com/api/auth/verify?token=${verificationToken}`;
+  const verificationUrl = `https://beti-food-backend.vercel.app/api/auth/verify?token=${verificationToken}`;
   const emailSent = await sendEmail({
     to: email,
     subject: "Email Verification",
@@ -136,7 +136,7 @@ exports.verifyEmail = async (req, res) => {
   }
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const user = await User.findOne({ email: decoded.email });
+    const user = await User.findById(decoded.userId);
     if (!user) {
       return res.status(400).json({ message: "User not found." });
     }
