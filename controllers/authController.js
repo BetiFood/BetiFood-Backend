@@ -9,65 +9,73 @@ const { generateActivationEmail } = require("../utils/generateHTML.js");
 const passwordRegex =
   /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]).{8,}$/;
 
-exports.register = asyncHandler(async (req, res) => {
-  const { name, email, password, confirmPassword, phone, address, role } =
-    req.body;
-  // Confirm password match
-  if (password !== confirmPassword) {
-    return res.status(400).json({ message: "Passwords do not match" });
-  }
-  // Password validation
-  if (!passwordRegex.test(password)) {
-    return res.status(400).json({
-      message:
-        "كلمة المرور يجب أن تكون 8 أحرف على الأقل وتحتوي على حرف كبير وحرف صغير ورقم وحرف خاص",
-    });
-  }
-  // Check if email already exists
-  const existingUser = await User.findOne({ email });
-  if (existingUser) {
-    return res.status(400).json({ message: "البريد الإلكتروني مستخدم بالفعل" });
-  }
-
-  // Hash password
-  const hashedPassword = await bcrypt.hash(password, 10);
-  // Create user
-  const user = new User({
-    name,
-    email,
-    password: hashedPassword,
-    phone,
-    address,
-    role,
-  });
-  await user.save();
-  // Generate email verification token after user is saved
-  const verificationToken = jwt.sign(
-    { userId: user._id },
-    process.env.JWT_SECRET,
-    { expiresIn: "1d" }
-  );
-  // Prepare to send verification email
-  const verificationUrl = `https://beti-food-backend.vercel.app/api/auth/verify?token=${verificationToken}`;
+exports.register = async (req, res) => {
   try {
-    await sendEmail({
-      to: email,
-      subject: "تفعيل البريد الإلكتروني",
-      html: generateActivationEmail(verificationUrl),
+    const { name, email, password, confirmPassword, phone, address, role } =
+      req.body;
+    // تأكيد تطابق كلمتي المرور
+    if (password !== confirmPassword) {
+      return res.status(400).json({ message: "كلمتا المرور غير متطابقتين" });
+    }
+    // تحقق من قوة كلمة المرور
+    if (!passwordRegex.test(password)) {
+      return res.status(400).json({
+        message:
+          "كلمة المرور يجب أن تكون 8 أحرف على الأقل وتحتوي على حرف كبير وحرف صغير ورقم وحرف خاص",
+      });
+    }
+    // تحقق من وجود البريد الإلكتروني مسبقًا
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res
+        .status(400)
+        .json({ message: "البريد الإلكتروني مستخدم بالفعل" });
+    }
+    // تشفير كلمة المرور
+    const hashedPassword = await bcrypt.hash(password, 10);
+    // إنشاء المستخدم وحفظه
+    const user = new User({
+      name,
+      email,
+      password: hashedPassword,
+      phone,
+      address,
+      role,
     });
-  } catch (emailErr) {
-    await User.findByIdAndDelete(user._id);
-    return res.status(500).json({
+    await user.save();
+    // إنشاء رمز التحقق بعد حفظ المستخدم
+    const verificationToken = jwt.sign(
+      { userId: user._id },
+      process.env.JWT_SECRET,
+      { expiresIn: "1d" }
+    );
+    // إعداد رابط التحقق
+    const verificationUrl = `https://beti-food-backend.vercel.app/api/auth/verify?token=${verificationToken}`;
+    try {
+      await sendEmail({
+        to: email,
+        subject: "تفعيل البريد الإلكتروني",
+        html: generateActivationEmail(verificationUrl),
+      });
+    } catch (emailErr) {
+      await User.findByIdAndDelete(user._id);
+      return res.status(500).json({
+        message:
+          "فشل إرسال البريد الإلكتروني. تحقق من إعدادات البريد الإلكتروني.",
+        error: emailErr.message,
+      });
+    }
+    return res.status(201).json({
       message:
-        "فشل إرسال البريد الإلكتروني. تحقق من إعدادات البريد الإلكتروني.",
-      error: emailErr.message,
+        "تم التسجيل بنجاح. يرجى التحقق من بريدك الإلكتروني لتفعيل الحساب.",
+      userId: user._id,
     });
+  } catch (err) {
+    return res
+      .status(500)
+      .json({ message: "حدث خطأ أثناء التسجيل", error: err.message });
   }
-  return res.status(201).json({
-    message: "تم التسجيل بنجاح. يرجى التحقق من بريدك الإلكتروني لتفعيل الحساب.",
-    userId: user._id,
-  });
-});
+};
 
 exports.login = async (req, res) => {
   try {
