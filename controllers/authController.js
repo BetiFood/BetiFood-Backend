@@ -1,7 +1,7 @@
 const User = require("../models/User");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
-const { asyncHandler } = require("../utils/asyncHandler.js");
+const asyncHandler = require("../utils/asyncHandler.js");
 const { sendEmail } = require("../utils/sendMail.js");
 const { generateActivationEmail } = require("../utils/generateHTML.js");
 
