@@ -23,6 +23,7 @@ app.use(
 app.use(express.json());
 app.use("/api/auth", authRoutes);
 app.use("/api/meals", require("./routes/meals"));
+app.use("/uploads", express.static("uploads")); // للسماح بفتح الصور بعد الرفع
 
 app.get("/", (req, res) => {
   res.send("Hello from Express!");
