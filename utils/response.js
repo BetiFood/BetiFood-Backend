@@ -1,3 +1,13 @@
+class ApiResponse {
+  constructor(success, message, data = null) {
+    this.success = success;
+    this.message = message;
+    if (data !== null) {
+      this.data = data;
+    }
+  }
+}
+
 const sendResponse = (
   res,
   { statusCode = 200, success = true, message = "", data, stack }
@@ -12,5 +22,4 @@ const sendResponse = (
   return res.status(statusCode).json(response);
 };
 
-
-module.exports = sendResponse;
+module.exports = { ApiResponse, sendResponse };

@@ -23,6 +23,7 @@ app.use(
 app.use(express.json());
 app.use("/api/auth", authRoutes);
 app.use("/api/meals", require("./routes/meals"));
+app.use("/api/cart", require("./routes/cart"));
 
 app.get("/", (req, res) => {
   res.send("Hello from Express!");
