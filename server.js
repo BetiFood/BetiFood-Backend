@@ -28,12 +28,6 @@ app.get("/", (req, res) => {
   res.send("Hello from Express!");
 });
 
-// Handle errors
-// app.use((error, req, res, next) => {
-
-//   console.error("Error occurred:", error);
-//   res.status(500).json({ message: "Internal Server Error" });
-// });
 app.use(errorHandler);
 
 // Only listen if not running on Vercel (i.e., local development)

@@ -49,8 +49,8 @@ exports.register = async (req, res) => {
       process.env.JWT_SECRET,
       { expiresIn: "1d" }
     );
-    // إعداد رابط التحقق
-    const verificationUrl = `https://beti-food-backend.vercel.app/api/auth/verify?token=${verificationToken}`;
+    // إعداد رابط التحقق للواجهة الأمامية
+    const verificationUrl = `http://localhost:5174/confirm-email?token=${verificationToken}`;
     try {
       await sendEmail({
         to: email,
@@ -129,8 +129,9 @@ exports.verifyEmail = async (req, res) => {
       user.isVerified = true;
       await user.save();
     }
-    // Redirect to frontend login page
-    return res.redirect("http://localhost:5174/login");
+    return res
+      .status(200)
+      .json({ message: "تم تفعيل البريد الإلكتروني بنجاح", userId: user._id });
   } catch (err) {
     return res
       .status(400)
