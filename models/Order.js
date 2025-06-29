@@ -8,11 +8,15 @@ const orderSchema = new mongoose.Schema({
       quantity: Number,
     },
   ],
+  total: { type: Number, required: true }, // إجمالي السعر
   isDonation: Boolean,
   shippingAddress: String,
   cookId: { type: mongoose.Schema.Types.ObjectId, ref: "User" }, // cook
-  shippingType: String,
-  status: String,
+  status: { 
+    type: String, 
+    enum: ["pending", "confirmed", "preparing", "ready", "delivered", "cancelled"], 
+    default: "pending" 
+  },
   createdAt: { type: Date, default: Date.now },
 });
 

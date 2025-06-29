@@ -24,6 +24,9 @@ async function verifyToken(req, res, next) {
   }
 }
 
+// Alias for verifyToken
+const protect = verifyToken;
+
 function requireCookRole(req, res, next) {
   if (req.user && req.user.role === "cook") {
     return next();
@@ -31,4 +34,4 @@ function requireCookRole(req, res, next) {
   return res.status(403).json({ message: "يجب أن تكون طباخًا لإضافة وجبة" });
 }
 
-module.exports = { verifyToken, requireCookRole };
+module.exports = { verifyToken, protect, requireCookRole };

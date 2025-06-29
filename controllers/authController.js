@@ -1,7 +1,7 @@
 const User = require("../models/User");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
-const { asyncHandler } = require("../utils/asyncHandler.js");
+const asyncHandler = require("../utils/asyncHandler.js");
 const { sendEmail } = require("../utils/sendMail.js");
 const { generateActivationEmail } = require("../utils/generateHTML.js");
 
@@ -85,6 +85,11 @@ exports.login = async (req, res) => {
       return res
         .status(400)
         .json({ message: "البريد الإلكتروني أو كلمة المرور غير صحيحة" });
+    }
+    if (!user.isVerified) {
+      return res.status(403).json({
+        message: "يرجى تفعيل بريدك الإلكتروني أولاً لتتمكن من تسجيل الدخول",
+      });
     }
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
