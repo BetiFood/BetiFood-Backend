@@ -24,6 +24,7 @@ app.use(express.json());
 app.use("/api/auth", authRoutes);
 app.use("/api/meals", require("./routes/meals"));
 app.use("/api/cart", require("./routes/cart"));
+app.use("/uploads", express.static("uploads"));
 
 app.get("/", (req, res) => {
   res.send("Hello from Express!");
@@ -35,5 +36,5 @@ app.use(errorHandler);
 if (!process.env.VERCEL) {
   app.listen(port, () => console.log(`listening on http://localhost:${port}`));
 }
-// Remove app.listen() for Vercel compatibility
+
 module.exports = app;

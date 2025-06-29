@@ -2,15 +2,22 @@ const Meal = require("../models/Meal");
 
 async function addMeal(req, res) {
   try {
+    console.log("BODY:", req.body);
+    console.log("FILES:", req.files);
+
     const { name, description, price, category, quantity } = req.body;
     const cookId = req.user._id;
 
     if (!name || !description || !price || !category || !quantity) {
-      return res.status(400).json({ message: "يجب إدخال جميع الحقول المطلوبة" });
+      return res.status(400).json({
+        message: "❌ يجب إدخال جميع الحقول المطلوبة",
+        body: req.body,
+        files: req.files,
+      });
     }
 
     if (!req.files || req.files.length === 0) {
-      return res.status(400).json({ message: "يجب رفع صورة واحدة على الأقل" });
+      return res.status(400).json({ message: "❌ يجب رفع صورة واحدة على الأقل" });
     }
 
     const images = req.files.map((file) => file.filename);
@@ -42,6 +49,33 @@ async function getMeals(req, res) {
     res.status(200).json(meals);
   } catch (err) {
     res.status(500).json({ message: "❌ فشل في جلب الوجبات", error: err.message });
+  }
+}
+
+async function getMealById(req, res) {
+  try {
+    const meal = await Meal.findById(req.params.id).populate("cookId", "name email");
+    if (!meal) {
+      return res.status(404).json({ message: "❌ الوجبة غير موجودة" });
+    }
+    res.status(200).json(meal);
+  } catch (err) {
+    res.status(500).json({ message: "❌ فشل في جلب الوجبة", error: err.message });
+  }
+}
+
+async function getMealsByCategory(req, res) {
+  try {
+    const category = req.params.category;
+    const meals = await Meal.find({ category }).populate("cookId", "name email");
+
+    if (meals.length === 0) {
+      return res.status(404).json({ message: "❌ لا توجد وجبات في هذا التصنيف" });
+    }
+
+    res.status(200).json(meals);
+  } catch (err) {
+    res.status(500).json({ message: "❌ فشل في جلب الوجبات حسب التصنيف", error: err.message });
   }
 }
 
@@ -82,6 +116,8 @@ async function deleteMeal(req, res) {
 module.exports = {
   addMeal,
   getMeals,
+  getMealById,
+  getMealsByCategory,
   updateMeal,
   deleteMeal,
 };
