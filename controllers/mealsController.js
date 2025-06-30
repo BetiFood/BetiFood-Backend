@@ -17,10 +17,16 @@ async function addMeal(req, res) {
     }
 
     if (!req.files || req.files.length === 0) {
-      return res.status(400).json({ message: "❌ يجب رفع صورة واحدة على الأقل" });
+      return res
+        .status(400)
+        .json({ message: "❌ يجب رفع صورة واحدة على الأقل" });
     }
 
-    const images = req.files.map((file) => file.filename);
+    const images = req.files.map((file) => {
+      // If using Cloudinary, file.path will be the URL
+      // If using local storage, file.filename will be the filename
+      return file.path || file.filename;
+    });
 
     const meal = await Meal.create({
       name,
@@ -34,7 +40,15 @@ async function addMeal(req, res) {
 
     res.status(201).json({ message: "✅ تم إضافة الوجبة بنجاح", meal });
   } catch (err) {
-    res.status(500).json({ message: "❌ فشل إضافة الوجبة", error: err.message });
+    console.error("Error adding meal:", err);
+    res.status(500).json({
+      success: false,
+      message: "❌ فشل إضافة الوجبة",
+      error:
+        process.env.NODE_ENV === "development"
+          ? err.message
+          : "Internal server error",
+    });
   }
 }
 
@@ -48,34 +62,61 @@ async function getMeals(req, res) {
     const meals = await Meal.find(filter).populate("cookId", "name email");
     res.status(200).json(meals);
   } catch (err) {
-    res.status(500).json({ message: "❌ فشل في جلب الوجبات", error: err.message });
+    console.error("Error getting meals:", err);
+    res.status(500).json({
+      success: false,
+      message: "❌ فشل في جلب الوجبات",
+      error:
+        process.env.NODE_ENV === "development"
+          ? err.message
+          : "Internal server error",
+    });
   }
 }
 
 async function getMealById(req, res) {
   try {
-    const meal = await Meal.findById(req.params.id).populate("cookId", "name email");
+    const meal = await Meal.findById(req.params.id).populate(
+      "cookId",
+      "name email"
+    );
     if (!meal) {
       return res.status(404).json({ message: "❌ الوجبة غير موجودة" });
     }
     res.status(200).json(meal);
   } catch (err) {
-    res.status(500).json({ message: "❌ فشل في جلب الوجبة", error: err.message });
+    console.error("Error getting meal by ID:", err);
+    res.status(500).json({
+      success: false,
+      message: "❌ فشل في جلب الوجبة",
+      error:
+        process.env.NODE_ENV === "development"
+          ? err.message
+          : "Internal server error",
+    });
   }
 }
 
 async function getMealsByCategory(req, res) {
   try {
     const category = req.params.category;
-    const meals = await Meal.find({ category }).populate("cookId", "name email");
+    const meals = await Meal.find({ category }).populate(
+      "cookId",
+      "name email"
+    );
 
     if (meals.length === 0) {
-      return res.status(404).json({ message: "❌ لا توجد وجبات في هذا التصنيف" });
+      return res
+        .status(404)
+        .json({ message: "❌ لا توجد وجبات في هذا التصنيف" });
     }
 
     res.status(200).json(meals);
   } catch (err) {
-    res.status(500).json({ message: "❌ فشل في جلب الوجبات حسب التصنيف", error: err.message });
+    res.status(500).json({
+      message: "❌ فشل في جلب الوجبات حسب التصنيف",
+      error: err.message,
+    });
   }
 }
 
@@ -85,7 +126,9 @@ async function updateMeal(req, res) {
     if (!meal) return res.status(404).json({ message: "❌ الوجبة غير موجودة" });
 
     if (meal.cookId.toString() !== req.user._id.toString()) {
-      return res.status(403).json({ message: "❌ غير مصرح لك بتعديل هذه الوجبة" });
+      return res
+        .status(403)
+        .json({ message: "❌ غير مصرح لك بتعديل هذه الوجبة" });
     }
 
     Object.assign(meal, req.body);
@@ -103,7 +146,9 @@ async function deleteMeal(req, res) {
     if (!meal) return res.status(404).json({ message: "❌ الوجبة غير موجودة" });
 
     if (meal.cookId.toString() !== req.user._id.toString()) {
-      return res.status(403).json({ message: "❌ غير مصرح لك بحذف هذه الوجبة" });
+      return res
+        .status(403)
+        .json({ message: "❌ غير مصرح لك بحذف هذه الوجبة" });
     }
 
     await meal.deleteOne();
