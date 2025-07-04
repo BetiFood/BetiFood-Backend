@@ -8,21 +8,24 @@ const {
   getMealsByCategory,
   updateMeal,
   deleteMeal,
+  getMyMeals,
 } = require("../controllers/mealsController");
 
-const { verifyToken, requireCookRole } = require("../middleware/authMiddleware");
+const { protect, requireCookRole } = require("../middleware/authMiddleware");
 const upload = require("../middleware/uploadMiddleware");
 
 router.get("/", getMeals);
 
-router.get("/category/:category", getMealsByCategory);
+router.get("/myMeals", protect, requireCookRole, getMyMeals);
 
 router.get("/:id", getMealById);
 
-router.post("/", verifyToken, requireCookRole, upload.array("image", 5), addMeal);
+router.get("/category/:categoryId", getMealsByCategory);
 
-router.put("/:id", verifyToken, requireCookRole, updateMeal);
+router.post("/", protect, requireCookRole, upload.array("images", 5), addMeal);
 
-router.delete("/:id", verifyToken, requireCookRole, deleteMeal);
+router.put("/:id", protect, requireCookRole, updateMeal);
+
+router.delete("/:id", protect, requireCookRole, deleteMeal);
 
 module.exports = router;

@@ -6,7 +6,7 @@ const errorHandler = (error, req, res, next) => {
   return sendResponse(res, {
     statusCode: error.statusCode || 500,
     success: false,
-    message: error.message || "Internal server error",
+    message: error.message || "خطأ في الخادم الداخلي",
     ...(isDev && { stack: error.stack }),
   });
 };

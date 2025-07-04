@@ -1,7 +1,7 @@
 const jwt = require("jsonwebtoken");
-const User = require("../models/User"); 
+const User = require("../models/User");
 
-async function verifyToken(req, res, next) {
+async function protect(req, res, next) {
   const authHeader = req.headers["authorization"];
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
     return res.status(401).json({ message: "غير مصرح" });
@@ -24,9 +24,6 @@ async function verifyToken(req, res, next) {
   }
 }
 
-// Alias for verifyToken
-const protect = verifyToken;
-
 function requireCookRole(req, res, next) {
   if (req.user && req.user.role === "cook") {
     return next();
@@ -34,4 +31,13 @@ function requireCookRole(req, res, next) {
   return res.status(403).json({ message: "يجب أن تكون طباخًا لإضافة وجبة" });
 }
 
-module.exports = { verifyToken, protect, requireCookRole };
+function notDelivery(req, res, next) {
+  if (req.user && req.user.role === "delivery") {
+    return res
+      .status(403)
+      .json({ message: "غير مصرح لمندوبي التوصيل بالوصول إلى هذا المورد" });
+  }
+  next();
+}
+
+module.exports = { protect, requireCookRole, notDelivery };
