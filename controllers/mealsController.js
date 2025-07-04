@@ -90,34 +90,58 @@ async function addMeal(req, res) {
 
 async function getMeals(req, res) {
   try {
-    const { categoryId, maxPrice } = req.query;
+    const {
+      category,
+      sort,
+      page = 1,
+      limit = 10,
+      query, // for search
+    } = req.query;
+
     const filter = {};
 
-    if (categoryId) filter["category.categoryId"] = categoryId;
-    if (maxPrice) filter.price = { $lte: Number(maxPrice) };
+    // Search by name or description
+    if (query) {
+      filter.$or = [
+        { name: { $regex: query, $options: "i" } },
+        { description: { $regex: query, $options: "i" } },
+      ];
+    }
 
-    const meals = await Meal.find(filter);
-
-    // Reorder fields to ensure proper order in response
-    const orderedMeals = meals.map((meal) => {
-      const mealObj = meal.toObject();
-      return {
-        _id: mealObj._id,
-        name: mealObj.name,
-        description: mealObj.description,
-        price: mealObj.price,
-        category: mealObj.category,
-        cook: mealObj.cook,
-        quantity: mealObj.quantity,
-        rate: mealObj.rate,
-        images: mealObj.images,
-        createdAt: mealObj.createdAt,
-        popularity: mealObj.popularity,
-        __v: mealObj.__v,
+    // Filter by category name (case-insensitive)
+    if (category) {
+      filter["category.categoryName"] = {
+        $regex: `^${category.trim()}$`,
+        $options: "i",
       };
-    });
+    }
 
-    res.status(200).json(orderedMeals);
+    // Sorting
+    let sortOption = {};
+    switch (sort) {
+      case "price_asc":
+        sortOption.price = 1;
+        break;
+      case "price_desc":
+        sortOption.price = -1;
+        break;
+      case "rating_desc":
+        sortOption.rate = -1;
+        break;
+      case "popularity_desc":
+        sortOption.popularity = -1;
+        break;
+    }
+
+    // Pagination
+    const skip = (page - 1) * limit;
+
+    const meals = await Meal.find(filter)
+      .sort(sortOption)
+      .skip(skip)
+      .limit(Number(limit));
+
+    res.status(200).json(meals);
   } catch (err) {
     console.error("Error getting meals:", err);
     res.status(500).json({
@@ -130,6 +154,7 @@ async function getMeals(req, res) {
     });
   }
 }
+
 
 async function getMealById(req, res) {
   try {
