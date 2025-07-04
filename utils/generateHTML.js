@@ -1,4 +1,10 @@
 function generateActivationEmail(link) {
+  // Get Cloudinary cloud name from environment variables
+  const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
+
+  // Use Cloudinary URL for logo, fallback to a placeholder if not configured
+  const logoUrl = `https://res.cloudinary.com/${cloudName}/image/upload/v1751602440/with_bg_fbnbll.svg`;
+
   return `
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -15,7 +21,7 @@ function generateActivationEmail(link) {
                     <!-- Header -->
                     <tr>
                         <td align="center" style="padding: 30px 20px 20px 20px; border-bottom: 1px solid #eaeaea;">
-                            <img src="https://beti-food-backend.vercel.app/with%20bg.png" alt="BetiFood Logo" width="80" style="margin-bottom: 16px;" />
+                            <img src="${logoUrl}" alt="BetiFood Logo" width="80" style="margin-bottom: 16px;" />
                             <h1 style="margin: 10px 0 5px 0; font-size: 24px; color: #ff7043;">بيتي فود</h1>
                         </td>
                     </tr>

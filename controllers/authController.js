@@ -13,6 +13,12 @@ exports.register = async (req, res) => {
   try {
     const { name, email, password, confirmPassword, phone, address, role } =
       req.body;
+
+    // Prevent users from setting isVerified
+    if (req.body.isVerified !== undefined) {
+      return res.status(403).json({ message: "لا يمكن تعيين حالة التحقق" });
+    }
+
     // تأكيد تطابق كلمتي المرور
     if (password !== confirmPassword) {
       return res.status(400).json({ message: "كلمتا المرور غير متطابقتين" });

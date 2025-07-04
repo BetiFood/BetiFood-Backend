@@ -21,7 +21,7 @@ async function setupMeals() {
     cookId,
     quantity: 10,
     rate: 0.0,
-    image: "https://example.com/koshary.jpg",
+    images: ["https://example.com/koshary.jpg"],
     createdAt: new Date(),
   });
 
@@ -33,7 +33,7 @@ async function setupMeals() {
     cookId,
     quantity: 20,
     rate: 0.0,
-    image: "https://example.com/warak.jpg",
+    images: ["https://example.com/warak.jpg"],
     createdAt: new Date(),
   });
 
