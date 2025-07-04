@@ -16,7 +16,7 @@ const getAllCategories = async (req, res) => {
   } catch (err) {
     res
       .status(500)
-      .json({ message: "❌ فشل في جلب التصنيفات", error: err.message });
+      .json({ message: "فشل في جلب التصنيفات", error: err.message });
   }
 };
 
@@ -47,13 +47,13 @@ const createCategory = async (req, res) => {
 
     await category.save();
     res.status(201).json({
-      message: "✅ تم إنشاء التصنيف بنجاح",
+      message: "تم إنشاء التصنيف بنجاح",
       category,
     });
   } catch (err) {
     res
       .status(500)
-      .json({ message: "❌ فشل في إنشاء التصنيف", error: err.message });
+      .json({ message: "فشل في إنشاء التصنيف", error: err.message });
   }
 };
 
@@ -101,13 +101,13 @@ const updateCategory = async (req, res) => {
 
     await category.save();
     res.json({
-      message: "✅ تم تحديث التصنيف بنجاح",
+      message: "تم تحديث التصنيف بنجاح",
       category,
     });
   } catch (err) {
     res
       .status(500)
-      .json({ message: "❌ فشل في تحديث التصنيف", error: err.message });
+      .json({ message: "فشل في تحديث التصنيف", error: err.message });
   }
 };
 
@@ -134,11 +134,9 @@ const deleteCategory = async (req, res) => {
     }
 
     await Category.findByIdAndDelete(id);
-    res.json({ message: "✅ تم حذف التصنيف بنجاح" });
+    res.json({ message: "تم حذف التصنيف بنجاح" });
   } catch (err) {
-    res
-      .status(500)
-      .json({ message: "❌ فشل في حذف التصنيف", error: err.message });
+    res.status(500).json({ message: "فشل في حذف التصنيف", error: err.message });
   }
 };
 
@@ -154,9 +152,7 @@ const getCategoryById = async (req, res) => {
 
     res.json(category);
   } catch (err) {
-    res
-      .status(500)
-      .json({ message: "❌ فشل في جلب التصنيف", error: err.message });
+    res.status(500).json({ message: "فشل في جلب التصنيف", error: err.message });
   }
 };
 

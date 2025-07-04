@@ -24,7 +24,7 @@ async function addMeal(req, res) {
     ) {
       return res
         .status(400)
-        .json({ message: "❌ يجب إدخال جميع الحقول المطلوبة" });
+        .json({ message: "يجب إدخال جميع الحقول المطلوبة" });
     }
 
     const priceNum = Number(price);
@@ -32,7 +32,7 @@ async function addMeal(req, res) {
     if (isNaN(priceNum) || isNaN(quantityNum)) {
       return res
         .status(400)
-        .json({ message: "❌ السعر والكمية يجب أن يكونا أرقامًا صحيحة" });
+        .json({ message: "السعر والكمية يجب أن يكونا أرقامًا صحيحة" });
     }
 
     // Validate category exists and is active by name (case-insensitive, whitespace-tolerant)
@@ -40,16 +40,14 @@ async function addMeal(req, res) {
       name: { $regex: `^${categoryName.trim()}$`, $options: "i" },
     });
     if (!category) {
-      return res.status(404).json({ message: "❌ التصنيف غير موجود" });
+      return res.status(404).json({ message: "التصنيف غير موجود" });
     }
     if (!category.isActive) {
-      return res.status(400).json({ message: "❌ التصنيف غير نشط" });
+      return res.status(400).json({ message: "التصنيف غير نشط" });
     }
 
     if (!req.files || req.files.length === 0) {
-      return res
-        .status(400)
-        .json({ message: "❌ يجب رفع صورة واحدة على الأقل" });
+      return res.status(400).json({ message: "يجب رفع صورة واحدة على الأقل" });
     }
 
     const images = req.files.map((file) => {
@@ -76,12 +74,12 @@ async function addMeal(req, res) {
       images: images,
     });
 
-    res.status(201).json({ message: "✅ تم إضافة الوجبة بنجاح", meal });
+    res.status(201).json({ message: "تم إضافة الوجبة بنجاح", meal });
   } catch (err) {
     console.error("Error adding meal:", err);
     res.status(500).json({
       success: false,
-      message: "❌ فشل إضافة الوجبة",
+      message: "فشل إضافة الوجبة",
       error:
         process.env.NODE_ENV === "development"
           ? err.message
@@ -124,7 +122,7 @@ async function getMeals(req, res) {
     console.error("Error getting meals:", err);
     res.status(500).json({
       success: false,
-      message: "❌ فشل في جلب الوجبات",
+      message: "فشل في جلب الوجبات",
       error:
         process.env.NODE_ENV === "development"
           ? err.message
@@ -137,14 +135,14 @@ async function getMealById(req, res) {
   try {
     const meal = await Meal.findById(req.params.id);
     if (!meal) {
-      return res.status(404).json({ message: "❌ الوجبة غير موجودة" });
+      return res.status(404).json({ message: "الوجبة غير موجودة" });
     }
     res.status(200).json(meal);
   } catch (err) {
     console.error("Error getting meal by ID:", err);
     res.status(500).json({
       success: false,
-      message: "❌ فشل في جلب الوجبة",
+      message: "فشل في جلب الوجبة",
       error:
         process.env.NODE_ENV === "development"
           ? err.message
@@ -160,21 +158,19 @@ async function getMealsByCategory(req, res) {
     // Validate category exists
     const category = await Category.findById(categoryId);
     if (!category) {
-      return res.status(404).json({ message: "❌ التصنيف غير موجود" });
+      return res.status(404).json({ message: "التصنيف غير موجود" });
     }
 
     const meals = await Meal.find({ "category.categoryId": categoryId });
 
     if (meals.length === 0) {
-      return res
-        .status(404)
-        .json({ message: "❌ لا توجد وجبات في هذا التصنيف" });
+      return res.status(404).json({ message: "لا توجد وجبات في هذا التصنيف" });
     }
 
     res.status(200).json(meals);
   } catch (err) {
     res.status(500).json({
-      message: "❌ فشل في جلب الوجبات حسب التصنيف",
+      message: "فشل في جلب الوجبات حسب التصنيف",
       error: err.message,
     });
   }
@@ -183,22 +179,24 @@ async function getMealsByCategory(req, res) {
 async function updateMeal(req, res) {
   try {
     const meal = await Meal.findById(req.params.id);
-    if (!meal) return res.status(404).json({ message: "❌ الوجبة غير موجودة" });
+    if (!meal) return res.status(404).json({ message: "الوجبة غير موجودة" });
 
-    if (meal.cookId.toString() !== req.user._id.toString()) {
-      return res
-        .status(403)
-        .json({ message: "❌ غير مصرح لك بتعديل هذه الوجبة" });
+    if (
+      !meal.cook ||
+      !meal.cook.cookId ||
+      meal.cook.cookId.toString() !== req.user._id.toString()
+    ) {
+      return res.status(403).json({ message: "غير مصرح لك بتعديل هذه الوجبة" });
     }
 
     // If category is being updated, validate it
     if (req.body.categoryId) {
       const category = await Category.findById(req.body.categoryId);
       if (!category) {
-        return res.status(404).json({ message: "❌ التصنيف غير موجود" });
+        return res.status(404).json({ message: "التصنيف غير موجود" });
       }
       if (!category.isActive) {
-        return res.status(400).json({ message: "❌ التصنيف غير نشط" });
+        return res.status(400).json({ message: "التصنيف غير نشط" });
       }
 
       // Update category information
@@ -221,27 +219,25 @@ async function updateMeal(req, res) {
     Object.assign(meal, req.body);
     await meal.save();
 
-    res.status(200).json({ message: "✅ تم تحديث الوجبة", meal });
+    res.status(200).json({ message: " تم تحديث الوجبة", meal });
   } catch (err) {
-    res.status(500).json({ message: "❌ فشل في التحديث", error: err.message });
+    res.status(500).json({ message: " فشل في التحديث", error: err.message });
   }
 }
 
 async function deleteMeal(req, res) {
   try {
     const meal = await Meal.findById(req.params.id);
-    if (!meal) return res.status(404).json({ message: "❌ الوجبة غير موجودة" });
+    if (!meal) return res.status(404).json({ message: " الوجبة غير موجودة" });
 
     if (meal.cookId.toString() !== req.user._id.toString()) {
-      return res
-        .status(403)
-        .json({ message: "❌ غير مصرح لك بحذف هذه الوجبة" });
+      return res.status(403).json({ message: " غير مصرح لك بحذف هذه الوجبة" });
     }
 
     await meal.deleteOne();
-    res.status(200).json({ message: "✅ تم حذف الوجبة" });
+    res.status(200).json({ message: " تم حذف الوجبة" });
   } catch (err) {
-    res.status(500).json({ message: "❌ فشل في الحذف", error: err.message });
+    res.status(500).json({ message: " فشل في الحذف", error: err.message });
   }
 }
 
