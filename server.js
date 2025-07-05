@@ -27,6 +27,7 @@ app.use(express.json());
 app.use("/api/auth", authRoutes);
 app.use("/api/meals", require("./routes/meals"));
 app.use("/api/cart", require("./routes/cart"));
+app.use("/api/orders", require("./routes/orderRoutes"));
 app.use("/api/admin", adminRoutes);
 app.use("/api/categories", categoryRoutes);
 app.use("/api/wishlist", wishlistRoutes);
