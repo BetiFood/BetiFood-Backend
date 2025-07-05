@@ -234,11 +234,13 @@ async function updateMeal(req, res) {
     const meal = await Meal.findById(req.params.id);
     if (!meal) return res.status(404).json({ message: "الوجبة غير موجودة" });
 
-    if (
-      !meal.cook ||
-      !meal.cook.cookId ||
-      meal.cook.cookId.toString() !== req.user._id.toString()
-    ) {
+    // More robust cook authorization check
+    const isAuthorized =
+      meal.cook &&
+      meal.cook.cookId &&
+      meal.cook.cookId.toString() === req.user._id.toString();
+
+    if (!isAuthorized) {
       return res.status(403).json({ message: "غير مصرح لك بتعديل هذه الوجبة" });
     }
 
@@ -337,11 +339,13 @@ async function deleteMeal(req, res) {
     const meal = await Meal.findById(req.params.id);
     if (!meal) return res.status(404).json({ message: " الوجبة غير موجودة" });
 
-    if (
-      !meal.cook ||
-      !meal.cook.cookId ||
-      meal.cook.cookId.toString() !== req.user._id.toString()
-    ) {
+    // More robust cook authorization check
+    const isAuthorized =
+      meal.cook &&
+      meal.cook.cookId &&
+      meal.cook.cookId.toString() === req.user._id.toString();
+
+    if (!isAuthorized) {
       return res.status(403).json({ message: "غير مصرح لك بحذف هذه الوجبة" });
     }
 
