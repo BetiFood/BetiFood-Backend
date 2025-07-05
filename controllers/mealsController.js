@@ -155,7 +155,6 @@ async function getMeals(req, res) {
   }
 }
 
-
 async function getMealById(req, res) {
   try {
     const meal = await Meal.findById(req.params.id);
@@ -203,6 +202,9 @@ async function getMealsByCategory(req, res) {
 
 async function updateMeal(req, res) {
   try {
+    console.log("UPDATE BODY:", req.body);
+    console.log("UPDATE FILES:", req.files);
+
     const meal = await Meal.findById(req.params.id);
     if (!meal) return res.status(404).json({ message: "الوجبة غير موجودة" });
 
@@ -214,9 +216,21 @@ async function updateMeal(req, res) {
       return res.status(403).json({ message: "غير مصرح لك بتعديل هذه الوجبة" });
     }
 
+    // Handle image uploads if files are provided
+    if (req.files && req.files.length > 0) {
+      const images = req.files.map((file) => {
+        // If using Cloudinary, file.path will be the URL
+        // If using local storage, file.filename will be the filename
+        return file.path || file.filename;
+      });
+      req.body.images = images;
+    }
+
     // If category is being updated, validate it
-    if (req.body.categoryId) {
-      const category = await Category.findById(req.body.categoryId);
+    if (req.body.categoryName) {
+      const category = await Category.findOne({
+        name: { $regex: `^${req.body.categoryName.trim()}$`, $options: "i" },
+      });
       if (!category) {
         return res.status(404).json({ message: "التصنيف غير موجود" });
       }
@@ -229,24 +243,44 @@ async function updateMeal(req, res) {
         categoryId: category._id,
         categoryName: category.name,
       };
-      delete req.body.categoryId; // Remove the original field
+      delete req.body.categoryName; // Remove the original field
     }
 
-    // In updateMeal, if updating cook, update both cookId and name
-    if (req.body.cookId) {
-      meal.cook = {
-        cookId: req.body.cookId,
-        name: req.user.name, // or fetch from DB if needed
-      };
-      delete req.body.cookId;
+    // Validate numbers if provided
+    if (req.body.price !== undefined) {
+      const priceNum = Number(req.body.price);
+      if (isNaN(priceNum)) {
+        return res
+          .status(400)
+          .json({ message: "السعر يجب أن يكون رقمًا صحيحًا" });
+      }
+      req.body.price = priceNum;
     }
 
+    if (req.body.quantity !== undefined) {
+      const quantityNum = Number(req.body.quantity);
+      if (isNaN(quantityNum)) {
+        return res
+          .status(400)
+          .json({ message: "الكمية يجب أن تكون رقمًا صحيحًا" });
+      }
+      req.body.quantity = quantityNum;
+    }
+
+    // Update the meal
     Object.assign(meal, req.body);
     await meal.save();
 
-    res.status(200).json({ message: " تم تحديث الوجبة", meal });
+    res.status(200).json({ message: "تم تحديث الوجبة بنجاح", meal });
   } catch (err) {
-    res.status(500).json({ message: " فشل في التحديث", error: err.message });
+    console.error("Error updating meal:", err);
+    res.status(500).json({
+      message: "فشل في تحديث الوجبة",
+      error:
+        process.env.NODE_ENV === "development"
+          ? err.message
+          : "Internal server error",
+    });
   }
 }
 

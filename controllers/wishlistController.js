@@ -32,9 +32,23 @@ const addToWishlist = async (req, res) => {
 
     await wishlistItem.save();
 
+    // Populate meal data for response
+    const populatedWishlistItem = await Wishlist.findById(
+      wishlistItem._id
+    ).populate({
+      path: "mealId",
+      select:
+        "name description price category categoryName images cook rate popularity",
+    });
+
+    // Rename mealId to meal in response
+    const response = populatedWishlistItem.toObject();
+    response.meal = response.mealId;
+    delete response.mealId;
+
     res.status(201).json({
       message: "تم إضافة الوجبة إلى قائمة المفضلة بنجاح",
-      wishlistItem,
+      wishlistItem: response,
     });
   } catch (err) {
     res.status(500).json({
@@ -52,11 +66,20 @@ const getWishlist = async (req, res) => {
     const wishlistItems = await Wishlist.find({ userId })
       .populate({
         path: "mealId",
-        select: "name description price category images cook rate popularity",
+        select:
+          "name description price category categoryName images cook rate popularity",
       })
       .sort({ addedAt: -1 });
 
-    res.json(wishlistItems);
+    // Rename mealId to meal in each item
+    const response = wishlistItems.map((item) => {
+      const itemObj = item.toObject();
+      itemObj.meal = itemObj.mealId;
+      delete itemObj.mealId;
+      return itemObj;
+    });
+
+    res.json(response);
   } catch (err) {
     res
       .status(500)
@@ -70,7 +93,7 @@ const removeFromWishlist = async (req, res) => {
     const { mealId } = req.params;
     const userId = req.user._id;
 
-    const wishlistItem = await Wishlist.findOneAndDelete({ userId, mealId });
+    const wishlistItem = await Wishlist.findOne({ userId, mealId });
 
     if (!wishlistItem) {
       return res
@@ -78,7 +101,15 @@ const removeFromWishlist = async (req, res) => {
         .json({ message: "الوجبة غير موجودة في قائمة المفضلة" });
     }
 
-    res.json({ message: "تم حذف الوجبة من قائمة المفضلة بنجاح" });
+    // Get meal data before deletion
+    const meal = await Meal.findById(mealId);
+
+    await Wishlist.findOneAndDelete({ userId, mealId });
+
+    res.json({
+      message: "تم حذف الوجبة من قائمة المفضلة بنجاح",
+      removedMeal: meal,
+    });
   } catch (err) {
     res.status(500).json({
       message: "فشل في حذف الوجبة من قائمة المفضلة",
@@ -93,12 +124,25 @@ const checkWishlistStatus = async (req, res) => {
     const { mealId } = req.params;
     const userId = req.user._id;
 
-    const wishlistItem = await Wishlist.findOne({ userId, mealId });
-
-    res.json({
-      isInWishlist: !!wishlistItem,
-      wishlistItem: wishlistItem || null,
+    const wishlistItem = await Wishlist.findOne({ userId, mealId }).populate({
+      path: "mealId",
+      select:
+        "name description price category categoryName images cook rate popularity",
     });
+
+    let response = {
+      isInWishlist: !!wishlistItem,
+      wishlistItem: null,
+    };
+
+    if (wishlistItem) {
+      const itemObj = wishlistItem.toObject();
+      itemObj.meal = itemObj.mealId;
+      delete itemObj.mealId;
+      response.wishlistItem = itemObj;
+    }
+
+    res.json(response);
   } catch (err) {
     res.status(500).json({
       message: "فشل في التحقق من حالة قائمة المفضلة",
@@ -112,11 +156,27 @@ const clearWishlist = async (req, res) => {
   try {
     const userId = req.user._id;
 
+    // Get all wishlist items with meal data before deletion
+    const wishlistItems = await Wishlist.find({ userId }).populate({
+      path: "mealId",
+      select:
+        "name description price category categoryName images cook rate popularity",
+    });
+
     const result = await Wishlist.deleteMany({ userId });
+
+    // Rename mealId to meal in each item
+    const removedMeals = wishlistItems.map((item) => {
+      const itemObj = item.toObject();
+      itemObj.meal = itemObj.mealId;
+      delete itemObj.mealId;
+      return itemObj;
+    });
 
     res.json({
       message: "تم مسح قائمة المفضلة بنجاح",
       deletedCount: result.deletedCount,
+      removedMeals: removedMeals,
     });
   } catch (err) {
     res
