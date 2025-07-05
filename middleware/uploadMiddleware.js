@@ -14,23 +14,12 @@ if (
   console.error(
     "Please set: CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET"
   );
-  console.log("🔄 Falling back to local storage...");
+  console.log(
+    "🔄 Falling back to memory storage for serverless environment..."
+  );
 
-  // Ensure uploads directory exists
-  const uploadDir = path.join(__dirname, "..", "uploads");
-  if (!fs.existsSync(uploadDir)) {
-    fs.mkdirSync(uploadDir);
-  }
-
-  // Fallback to local storage if Cloudinary is not configured
-  const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-      cb(null, uploadDir);
-    },
-    filename: (req, file, cb) => {
-      cb(null, `${Date.now()}-${file.originalname}`);
-    },
-  });
+  // Use memory storage for serverless environments
+  const storage = multer.memoryStorage();
 
   const fileFilter = (req, file, cb) => {
     const allowedTypes = /jpeg|jpg|png/;
