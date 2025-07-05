@@ -1,5 +1,6 @@
 const Meal = require("../models/Meal");
 const Category = require("../models/Category");
+const cloudinary = require("cloudinary").v2;
 
 async function addMeal(req, res) {
   try {
@@ -50,11 +51,36 @@ async function addMeal(req, res) {
       return res.status(400).json({ message: "يجب رفع صورة واحدة على الأقل" });
     }
 
-    const images = req.files.map((file) => {
-      // If using Cloudinary, file.path will be the URL
-      // If using local storage, file.filename will be the filename
-      return file.path || file.filename;
-    });
+    // Handle image uploads
+    let images = [];
+    if (req.files && req.files.length > 0) {
+      // Check if using Cloudinary (files have path) or memory storage (files have buffer)
+      if (req.files[0].path) {
+        // Cloudinary storage - files already uploaded
+        images = req.files.map((file) => file.path);
+      } else {
+        // Memory storage - need to upload to Cloudinary
+        try {
+          const uploadPromises = req.files.map(async (file) => {
+            const result = await cloudinary.uploader.upload(
+              `data:${file.mimetype};base64,${file.buffer.toString("base64")}`,
+              {
+                folder: "meals",
+                transformation: [{ width: 500, height: 500, crop: "limit" }],
+              }
+            );
+            return result.secure_url;
+          });
+          images = await Promise.all(uploadPromises);
+        } catch (uploadError) {
+          console.error("Error uploading to Cloudinary:", uploadError);
+          return res.status(500).json({
+            message: "فشل في رفع الصور",
+            error: "Cloudinary upload failed",
+          });
+        }
+      }
+    }
 
     const cook = {
       cookId: req.user._id,
@@ -218,11 +244,33 @@ async function updateMeal(req, res) {
 
     // Handle image uploads if files are provided
     if (req.files && req.files.length > 0) {
-      const images = req.files.map((file) => {
-        // If using Cloudinary, file.path will be the URL
-        // If using local storage, file.filename will be the filename
-        return file.path || file.filename;
-      });
+      let images = [];
+      // Check if using Cloudinary (files have path) or memory storage (files have buffer)
+      if (req.files[0].path) {
+        // Cloudinary storage - files already uploaded
+        images = req.files.map((file) => file.path);
+      } else {
+        // Memory storage - need to upload to Cloudinary
+        try {
+          const uploadPromises = req.files.map(async (file) => {
+            const result = await cloudinary.uploader.upload(
+              `data:${file.mimetype};base64,${file.buffer.toString("base64")}`,
+              {
+                folder: "meals",
+                transformation: [{ width: 500, height: 500, crop: "limit" }],
+              }
+            );
+            return result.secure_url;
+          });
+          images = await Promise.all(uploadPromises);
+        } catch (uploadError) {
+          console.error("Error uploading to Cloudinary:", uploadError);
+          return res.status(500).json({
+            message: "فشل في رفع الصور",
+            error: "Cloudinary upload failed",
+          });
+        }
+      }
       req.body.images = images;
     }
 
