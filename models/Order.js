@@ -1,23 +1,33 @@
-const mongoose = require("mongoose");
+const mongoose = require('mongoose');
 
-const orderSchema = new mongoose.Schema({
-  userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" }, // client
-  meals: [
-    {
-      mealId: { type: mongoose.Schema.Types.ObjectId, ref: "Meal" },
-      quantity: Number,
-    },
-  ],
-  total: { type: Number, required: true }, // إجمالي السعر
-  isDonation: Boolean,
-  shippingAddress: String,
-  cookId: { type: mongoose.Schema.Types.ObjectId, ref: "User" }, // cook
-  status: { 
-    type: String, 
-    enum: ["pending", "confirmed", "preparing", "ready", "delivered", "cancelled"], 
-    default: "pending" 
+const orderItemSchema = new mongoose.Schema({
+  meal_id: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Meal', 
+    required: true
   },
-  createdAt: { type: Date, default: Date.now },
+  meal_name: String,
+  quantity: { type: Number, required: true },
+  unit_price: { type: Number, required: true },
+  total_price: { type: Number, required: true }
 });
 
-module.exports = mongoose.model("Order", orderSchema);
+const orderSchema = new mongoose.Schema({
+  customer_name: { type: String, required: true },
+  phone: { type: String, required: true },
+  address: { type: String, required: true },
+  items: [orderItemSchema],
+  total_price: { type: Number, required: true },
+  status: {
+    type: String,
+    enum: ['pending', 'preparing', 'on_the_way', 'delivered', 'cancelled'],
+    default: 'pending'
+  },
+  payment_method: {
+    type: String,
+    enum: ['cash', 'online'],
+    default: 'cash'
+  }
+}, { timestamps: true });
+
+module.exports = mongoose.model('Order', orderSchema);
