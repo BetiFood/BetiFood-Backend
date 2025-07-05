@@ -24,7 +24,13 @@ router.get("/category/:categoryId", getMealsByCategory);
 
 router.post("/", protect, requireCookRole, upload.array("images", 5), addMeal);
 
-router.put("/:id", protect, requireCookRole, updateMeal);
+router.put(
+  "/:id",
+  protect,
+  requireCookRole,
+  upload.array("images", 5),
+  updateMeal
+);
 
 router.delete("/:id", protect, requireCookRole, deleteMeal);
 
