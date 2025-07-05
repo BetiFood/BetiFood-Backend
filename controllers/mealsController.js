@@ -230,8 +230,12 @@ async function deleteMeal(req, res) {
     const meal = await Meal.findById(req.params.id);
     if (!meal) return res.status(404).json({ message: " الوجبة غير موجودة" });
 
-    if (meal.cookId.toString() !== req.user._id.toString()) {
-      return res.status(403).json({ message: " غير مصرح لك بحذف هذه الوجبة" });
+    if (
+      !meal.cook ||
+      !meal.cook.cookId ||
+      meal.cook.cookId.toString() !== req.user._id.toString()
+    ) {
+      return res.status(403).json({ message: "غير مصرح لك بحذف هذه الوجبة" });
     }
 
     await meal.deleteOne();
