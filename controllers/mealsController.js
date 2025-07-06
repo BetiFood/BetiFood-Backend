@@ -317,6 +317,28 @@ async function updateMeal(req, res) {
       req.body.quantity = quantityNum;
     }
 
+    // Validate rate if provided (should be a float between 0 and 5)
+    if (req.body.rate !== undefined) {
+      const rateNum = Number(req.body.rate);
+      if (isNaN(rateNum) || rateNum < 0 || rateNum > 5) {
+        return res
+          .status(400)
+          .json({ message: "التقييم يجب أن يكون رقمًا بين 0 و 5" });
+      }
+      req.body.rate = rateNum;
+    }
+
+    // Validate popularity if provided (should be a float >= 0)
+    if (req.body.popularity !== undefined) {
+      const popularityNum = Number(req.body.popularity);
+      if (isNaN(popularityNum) || popularityNum < 0) {
+        return res
+          .status(400)
+          .json({ message: "مؤشر الشعبية يجب أن يكون رقمًا موجبًا" });
+      }
+      req.body.popularity = popularityNum;
+    }
+
     // Update the meal
     Object.assign(meal, req.body);
     await meal.save();
