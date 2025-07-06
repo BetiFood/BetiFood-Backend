@@ -17,10 +17,17 @@ async function setupMeals() {
     name: "كشري",
     description: "كشري مصري أصلي",
     price: 30,
-    category: "وجبات مصرية",
-    cookId,
+    category: {
+      categoryId: new mongoose.Types.ObjectId(),
+      categoryName: "وجبات مصرية",
+    },
+    cook: {
+      cookId: cookId,
+      name: "أحمد محمد",
+    },
     quantity: 10,
-    rate: 0.0,
+    rate: 4.5,
+    popularity: 85.5,
     images: ["https://example.com/koshary.jpg"],
     createdAt: new Date(),
   });
@@ -29,10 +36,17 @@ async function setupMeals() {
     name: "محشي ورق عنب",
     description: "محشي ورق عنب مع سلطة زبادي",
     price: 50,
-    category: "وجبات شامية",
-    cookId,
+    category: {
+      categoryId: new mongoose.Types.ObjectId(),
+      categoryName: "وجبات شامية",
+    },
+    cook: {
+      cookId: cookId,
+      name: "أحمد محمد",
+    },
     quantity: 20,
-    rate: 0.0,
+    rate: 4.8,
+    popularity: 92.3,
     images: ["https://example.com/warak.jpg"],
     createdAt: new Date(),
   });
