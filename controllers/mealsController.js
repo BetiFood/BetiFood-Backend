@@ -1,5 +1,6 @@
 const Meal = require("../models/Meal");
 const Category = require("../models/Category");
+const cloudinary = require("cloudinary").v2;
 
 async function addMeal(req, res) {
   try {
@@ -50,11 +51,36 @@ async function addMeal(req, res) {
       return res.status(400).json({ message: "يجب رفع صورة واحدة على الأقل" });
     }
 
-    const images = req.files.map((file) => {
-      // If using Cloudinary, file.path will be the URL
-      // If using local storage, file.filename will be the filename
-      return file.path || file.filename;
-    });
+    // Handle image uploads
+    let images = [];
+    if (req.files && req.files.length > 0) {
+      // Check if using Cloudinary (files have path) or memory storage (files have buffer)
+      if (req.files[0].path) {
+        // Cloudinary storage - files already uploaded
+        images = req.files.map((file) => file.path);
+      } else {
+        // Memory storage - need to upload to Cloudinary
+        try {
+          const uploadPromises = req.files.map(async (file) => {
+            const result = await cloudinary.uploader.upload(
+              `data:${file.mimetype};base64,${file.buffer.toString("base64")}`,
+              {
+                folder: "meals",
+                transformation: [{ width: 500, height: 500, crop: "limit" }],
+              }
+            );
+            return result.secure_url;
+          });
+          images = await Promise.all(uploadPromises);
+        } catch (uploadError) {
+          console.error("Error uploading to Cloudinary:", uploadError);
+          return res.status(500).json({
+            message: "فشل في رفع الصور",
+            error: "Cloudinary upload failed",
+          });
+        }
+      }
+    }
 
     const cook = {
       cookId: req.user._id,
@@ -155,7 +181,6 @@ async function getMeals(req, res) {
   }
 }
 
-
 async function getMealById(req, res) {
   try {
     const meal = await Meal.findById(req.params.id);
@@ -203,20 +228,59 @@ async function getMealsByCategory(req, res) {
 
 async function updateMeal(req, res) {
   try {
+    console.log("UPDATE BODY:", req.body);
+    console.log("UPDATE FILES:", req.files);
+
     const meal = await Meal.findById(req.params.id);
     if (!meal) return res.status(404).json({ message: "الوجبة غير موجودة" });
 
-    if (
-      !meal.cook ||
-      !meal.cook.cookId ||
-      meal.cook.cookId.toString() !== req.user._id.toString()
-    ) {
+    // More robust cook authorization check
+    const isAuthorized =
+      meal.cook &&
+      meal.cook.cookId &&
+      meal.cook.cookId.toString() === req.user._id.toString();
+
+    if (!isAuthorized) {
       return res.status(403).json({ message: "غير مصرح لك بتعديل هذه الوجبة" });
     }
 
+    // Handle image uploads if files are provided
+    if (req.files && req.files.length > 0) {
+      let images = [];
+      // Check if using Cloudinary (files have path) or memory storage (files have buffer)
+      if (req.files[0].path) {
+        // Cloudinary storage - files already uploaded
+        images = req.files.map((file) => file.path);
+      } else {
+        // Memory storage - need to upload to Cloudinary
+        try {
+          const uploadPromises = req.files.map(async (file) => {
+            const result = await cloudinary.uploader.upload(
+              `data:${file.mimetype};base64,${file.buffer.toString("base64")}`,
+              {
+                folder: "meals",
+                transformation: [{ width: 500, height: 500, crop: "limit" }],
+              }
+            );
+            return result.secure_url;
+          });
+          images = await Promise.all(uploadPromises);
+        } catch (uploadError) {
+          console.error("Error uploading to Cloudinary:", uploadError);
+          return res.status(500).json({
+            message: "فشل في رفع الصور",
+            error: "Cloudinary upload failed",
+          });
+        }
+      }
+      req.body.images = images;
+    }
+
     // If category is being updated, validate it
-    if (req.body.categoryId) {
-      const category = await Category.findById(req.body.categoryId);
+    if (req.body.categoryName) {
+      const category = await Category.findOne({
+        name: { $regex: `^${req.body.categoryName.trim()}$`, $options: "i" },
+      });
       if (!category) {
         return res.status(404).json({ message: "التصنيف غير موجود" });
       }
@@ -229,24 +293,66 @@ async function updateMeal(req, res) {
         categoryId: category._id,
         categoryName: category.name,
       };
-      delete req.body.categoryId; // Remove the original field
+      delete req.body.categoryName; // Remove the original field
     }
 
-    // In updateMeal, if updating cook, update both cookId and name
-    if (req.body.cookId) {
-      meal.cook = {
-        cookId: req.body.cookId,
-        name: req.user.name, // or fetch from DB if needed
-      };
-      delete req.body.cookId;
+    // Validate numbers if provided
+    if (req.body.price !== undefined) {
+      const priceNum = Number(req.body.price);
+      if (isNaN(priceNum)) {
+        return res
+          .status(400)
+          .json({ message: "السعر يجب أن يكون رقمًا صحيحًا" });
+      }
+      req.body.price = priceNum;
     }
 
+    if (req.body.quantity !== undefined) {
+      const quantityNum = Number(req.body.quantity);
+      if (isNaN(quantityNum)) {
+        return res
+          .status(400)
+          .json({ message: "الكمية يجب أن تكون رقمًا صحيحًا" });
+      }
+      req.body.quantity = quantityNum;
+    }
+
+    // Validate rate if provided (should be a float between 0 and 5)
+    if (req.body.rate !== undefined) {
+      const rateNum = Number(req.body.rate);
+      if (isNaN(rateNum) || rateNum < 0 || rateNum > 5) {
+        return res
+          .status(400)
+          .json({ message: "التقييم يجب أن يكون رقمًا بين 0 و 5" });
+      }
+      req.body.rate = rateNum;
+    }
+
+    // Validate popularity if provided (should be a float >= 0)
+    if (req.body.popularity !== undefined) {
+      const popularityNum = Number(req.body.popularity);
+      if (isNaN(popularityNum) || popularityNum < 0) {
+        return res
+          .status(400)
+          .json({ message: "مؤشر الشعبية يجب أن يكون رقمًا موجبًا" });
+      }
+      req.body.popularity = popularityNum;
+    }
+
+    // Update the meal
     Object.assign(meal, req.body);
     await meal.save();
 
-    res.status(200).json({ message: " تم تحديث الوجبة", meal });
+    res.status(200).json({ message: "تم تحديث الوجبة بنجاح", meal });
   } catch (err) {
-    res.status(500).json({ message: " فشل في التحديث", error: err.message });
+    console.error("Error updating meal:", err);
+    res.status(500).json({
+      message: "فشل في تحديث الوجبة",
+      error:
+        process.env.NODE_ENV === "development"
+          ? err.message
+          : "Internal server error",
+    });
   }
 }
 
@@ -255,8 +361,14 @@ async function deleteMeal(req, res) {
     const meal = await Meal.findById(req.params.id);
     if (!meal) return res.status(404).json({ message: " الوجبة غير موجودة" });
 
-    if (meal.cookId.toString() !== req.user._id.toString()) {
-      return res.status(403).json({ message: " غير مصرح لك بحذف هذه الوجبة" });
+    // More robust cook authorization check
+    const isAuthorized =
+      meal.cook &&
+      meal.cook.cookId &&
+      meal.cook.cookId.toString() === req.user._id.toString();
+
+    if (!isAuthorized) {
+      return res.status(403).json({ message: "غير مصرح لك بحذف هذه الوجبة" });
     }
 
     await meal.deleteOne();
