@@ -27,6 +27,11 @@ const orderSchema = new mongoose.Schema({
     type: String,
     enum: ['cash', 'online'],
     default: 'cash'
+  },
+  userId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
   }
 }, { timestamps: true });
 
