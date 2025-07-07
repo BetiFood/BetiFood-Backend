@@ -31,6 +31,24 @@ function requireCookRole(req, res, next) {
   return res.status(403).json({ message: "يجب أن تكون طباخًا لإضافة وجبة" });
 }
 
+function requireClientRole(req, res, next) {
+  if (req.user && req.user.role === "client") {
+    return next();
+  }
+  return res
+    .status(403)
+    .json({ message: "يجب أن تكون عميلًا للوصول إلى هذا المورد" });
+}
+
+function requireAdminRole(req, res, next) {
+  if (req.user && req.user.role === "admin") {
+    return next();
+  }
+  return res
+    .status(403)
+    .json({ message: "يجب أن تكون مديرًا للوصول إلى هذا المورد" });
+}
+
 function notDelivery(req, res, next) {
   if (req.user && req.user.role === "delivery") {
     return res
@@ -40,4 +58,10 @@ function notDelivery(req, res, next) {
   next();
 }
 
-module.exports = { protect, requireCookRole, notDelivery };
+module.exports = {
+  protect,
+  requireCookRole,
+  requireClientRole,
+  requireAdminRole,
+  notDelivery,
+};
