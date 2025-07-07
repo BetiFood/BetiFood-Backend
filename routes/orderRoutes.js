@@ -7,22 +7,19 @@ const {
   requireCookOrDelivery 
 } = require('../middleware/orderMiddleware');
 
-// إنشاء طلب جديد - للعملاء فقط
-router.post('/addOrder', requireAuth, requireClientRole, orderController.createOrder);
-
-// checkout من السلة - للعملاء فقط
+// checkout من cart فقط - للعملاء فقط
 router.post('/checkout', requireAuth, requireClientRole, orderController.checkout);
 
-// جلب جميع الطلبات - للجميع (كل شخص يرى ما يخصه)
-router.get('/allOrders', requireAuth, orderController.getAllOrders);
+// جلب جميع الطلبات - للعميل فقط (يرى طلباته)
+router.get('/allOrders', requireAuth, requireClientRole, orderController.getAllOrders);
 
-// جلب طلب محدد - للجميع (كل شخص يرى ما يخصه)
-router.get('/order/:id', requireAuth, orderController.getOrderById);
+// جلب طلب محدد - للعميل فقط
+router.get('/order/:id', requireAuth, requireClientRole, orderController.getOrderById);
 
-// تحديث حالة الطلب - للعملاء والطباخين ومندوبي التوصيل
+// تحديث حالة الطلب - للطباخ أو مندوب التوصيل فقط
 router.put('/updateStatus/:id', requireAuth, requireCookOrDelivery, orderController.updateOrderStatus);
 
-// حذف طلب - للعملاء فقط
+// حذف طلب - للعميل فقط
 router.delete('/deleteOrder/:id', requireAuth, requireClientRole, orderController.deleteOrder);
 
 module.exports = router;
