@@ -2,9 +2,10 @@ const Order = require('../models/Order');
 const asyncHandler = require('../utils/asyncHandler');
 const Cart = require('../models/Cart');
 const Meal = require('../models/Meal');
+const User = require('../models/User');
 
 exports.createOrder = asyncHandler(async (req, res) => {
-  const { customer_name, phone, address, items, payment_method } = req.body;
+    const { customer_name, phone, address, items, payment_method } = req.body;
 
   // Validation
   if (!customer_name || !phone || !address || !items || items.length === 0) {
@@ -13,22 +14,22 @@ exports.createOrder = asyncHandler(async (req, res) => {
     });
   }
 
-  const total_price = items.reduce((acc, item) => {
+    const total_price = items.reduce((acc, item) => {
     return acc + (item.quantity * item.unit_price);
-  }, 0);
+    }, 0);
 
-  const processedItems = items.map(item => ({
-    ...item,
-    total_price: item.quantity * item.unit_price
-  }));
+    const processedItems = items.map(item => ({
+      ...item,
+      total_price: item.quantity * item.unit_price
+    }));
 
   // إضافة userId للطلب (المستخدم المسجل)
-  const order = await Order.create({
-    customer_name,
-    phone,
-    address,
-    items: processedItems,
-    total_price,
+    const order = await Order.create({
+      customer_name,
+      phone,
+      address,
+      items: processedItems,
+      total_price,
     payment_method,
     userId: req.user._id // إضافة معرف المستخدم
   });
@@ -40,26 +41,8 @@ exports.createOrder = asyncHandler(async (req, res) => {
 });
 
 exports.getAllOrders = asyncHandler(async (req, res) => {
-  let orders;
-  
-  // طباخ أو delivery يرى جميع الطلبات
-  if (req.user.role === "cook" || req.user.role === "delivery") {
-    orders = await Order.find().sort({ createdAt: -1 });
-  } 
-  // العميل يرى طلباته فقط
-  else if (req.user.role === "client") {
-    orders = await Order.find({ userId: req.user._id }).sort({ createdAt: -1 });
-  }
-  // admin يرى جميع الطلبات
-  else if (req.user.role === "admin") {
-    orders = await Order.find().sort({ createdAt: -1 });
-  }
-  else {
-    return res.status(403).json({ 
-      message: "غير مصرح لك بعرض الطلبات" 
-    });
-  }
-
+  // يرجع فقط طلبات العميل
+  const orders = await Order.find({ userId: req.user._id }).sort({ createdAt: -1 });
   res.json({
     success: true,
     count: orders.length,
@@ -112,7 +95,7 @@ exports.updateOrderStatus = asyncHandler(async (req, res) => {
     });
   }
 
-  const order = await Order.findById(req.params.id);
+    const order = await Order.findById(req.params.id);
   if (!order) {
     return res.status(404).json({ message: 'الطلب غير موجود' });
   }
@@ -137,10 +120,10 @@ exports.updateOrderStatus = asyncHandler(async (req, res) => {
   }
 
   const updatedOrder = await Order.findByIdAndUpdate(
-    req.params.id,
-    { status },
-    { new: true }
-  );
+      req.params.id,
+      { status },
+      { new: true }
+    );
   
   res.json({
     success: true,
@@ -182,60 +165,74 @@ exports.deleteOrder = asyncHandler(async (req, res) => {
 
 exports.checkout = asyncHandler(async (req, res) => {
   const userId = req.user._id;
-  const { customer_name, phone, address, payment_method } = req.body;
 
-  // تحقق من الحقول المطلوبة
+  // جلب بيانات المستخدم
+  const user = await User.findById(userId);
+  if (!user) {
+    return res.status(404).json({ success: false, message: 'المستخدم غير موجود.' });
+  }
+
+  const customer_name = user.name;
+  const phone = user.phone;
+  const address = user.address;
+
   if (!customer_name || !phone || !address) {
-    return res.status(400).json({ message: 'جميع الحقول مطلوبة: customer_name, phone, address' });
+    return res.status(400).json({
+      success: false,
+      message: 'يرجى استكمال بياناتك الشخصية (الاسم، رقم الهاتف، العنوان) قبل تنفيذ الطلب.'
+    });
   }
 
-  // جلب السلة الخاصة بالمستخدم
+  // تحقق من وجود عناصر في السلة فقط
   const cart = await Cart.findOne({ userId });
-  if (!cart || !cart.items || cart.items.length === 0) {
-    return res.status(400).json({ message: 'السلة فارغة' });
+  if (cart && cart.items && cart.items.length > 0) {
+    // جلب بيانات الوجبات
+    const mealIds = cart.items.map(item => item.mealId);
+    const meals = await Meal.find({ _id: { $in: mealIds } });
+    const items = cart.items.map(item => {
+      const meal = meals.find(m => m._id.toString() === item.mealId.toString());
+      if (!meal) return null;
+      return {
+        meal_id: meal._id,
+        meal_name: meal.name,
+        quantity: item.quantity,
+        unit_price: meal.price,
+        total_price: meal.price * item.quantity
+      };
+    }).filter(Boolean);
+
+    if (items.length === 0) {
+      return res.status(400).json({ success: false, message: 'لا توجد وجبات صالحة في السلة.' });
+    }
+
+    // حساب الإجمالي
+    const total_price = items.reduce((sum, item) => sum + item.total_price, 0);
+
+    // إنشاء الطلب
+    const order = await Order.create({
+      customer_name,
+      phone,
+      address,
+      items,
+      total_price,
+      payment_method: 'cash',
+      userId
+    });
+
+    // تفريغ السلة
+    cart.items = [];
+    await cart.save();
+
+    return res.status(201).json({
+      success: true,
+      message: 'تم إنشاء الطلب من السلة بنجاح.',
+      data: order
+    });
   }
 
-  // جلب بيانات الوجبات
-  const mealIds = cart.items.map(item => item.mealId);
-  const meals = await Meal.find({ _id: { $in: mealIds } });
-
-  // بناء عناصر الطلب
-  const items = cart.items.map(item => {
-    const meal = meals.find(m => m._id.toString() === item.mealId.toString());
-    if (!meal) return null;
-    return {
-      meal_id: meal._id,
-      meal_name: meal.name,
-      quantity: item.quantity,
-      unit_price: meal.price,
-      total_price: meal.price * item.quantity
-    };
-  }).filter(Boolean);
-
-  if (items.length === 0) {
-    return res.status(400).json({ message: 'لا توجد وجبات صالحة في السلة' });
-  }
-
-  // حساب الإجمالي
-  const total_price = items.reduce((sum, item) => sum + item.total_price, 0);
-
-  // إنشاء الطلب
-  const order = await Order.create({
-    customer_name,
-    phone,
-    address,
-    items,
-    total_price,
-    payment_method,
-    userId
-  });
-
-  // تفريغ السلة
-  cart.items = [];
-  await cart.save();
-
-  res.status(201).json({
-    success: true,
-    data: order
+  // السلة فارغة
+  return res.status(400).json({
+    success: false,
+    message: 'السلة فارغة، لا توجد عناصر متاحة لإتمام الطلب.'
   });
 });
