@@ -493,6 +493,27 @@ async function getAllCookReviews(req, res) {
   }
 }
 
+// Get top-rated cook reviews for clients
+async function getTopRatedCookReviews(req, res) {
+  try {
+    const limit = parseInt(req.query.limit) || 5;
+    const reviews = await CookReview.find({ isActive: true })
+      .sort({ rating: -1, createdAt: -1 })
+      .limit(limit);
+    res.status(200).json({ reviews });
+  } catch (err) {
+    console.error("Error getting top-rated cook reviews:", err);
+    res.status(500).json({
+      success: false,
+      message: "فشل في جلب التقييمات الأعلى",
+      error:
+        process.env.NODE_ENV === "development"
+          ? err.message
+          : "Internal server error",
+    });
+  }
+}
+
 module.exports = {
   addCookReview,
   getCookReviews,
@@ -502,4 +523,5 @@ module.exports = {
   deleteCookReview,
   getAllCookReviews,
   updateCookRating, // Export for potential external use
+  getTopRatedCookReviews,
 };
