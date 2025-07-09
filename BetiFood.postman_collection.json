@@ -1,0 +1,1313 @@
+{
+	"info": {
+		"_postman_id": "335868f0-855f-4ffb-88b2-0e196f5e3fc2",
+		"name": "BetiFood",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "31403619"
+	},
+	"item": [
+		{
+			"name": "Auth",
+			"item": [
+				{
+					"name": "Register",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "\r\n{\r\n  \"name\":  \"Fawzy \",\r\n  \"email\": \"Fawzy@gmail.com\",\r\n  \"password\": \"MFawzy@985\",\r\n  \"confirmPassword\": \"MFawzy@985\",\r\n  \"phone\": \"01094755985\",\r\n  \"address\": \"Toukh\"\r\n \r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://localhost:3000/api/auth/register",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"api",
+								"auth",
+								"register"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Login",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "\r\n{\r\n  \"email\": \"Fawzy@gmail.com\",\r\n  \"password\": \"MFawzy@985\"\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://localhost:3000/api/auth/login",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"api",
+								"auth",
+								"login"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Login Localhost",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n  \"email\": \"alifathy22a@gmail.com\",\r\n  \"password\": \"XoXo2712zozo2000?\"\r\n}\r\n",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{localhost}}/api/auth/login",
+							"host": [
+								"{{localhost}}"
+							],
+							"path": [
+								"api",
+								"auth",
+								"login"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "verifyEmail",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2ODVmYjM2N2Y3YTg4Nzk5MTU0NmQyYzciLCJpYXQiOjE3NTExMDIzMTEsImV4cCI6MTc1MTE4ODcxMX0.usD0X05P0W-EYCT7yniQcP9tCuP3ZF7S35baQ2u1JV0",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "https://beti-food-backend.vercel.app/api/auth/verify?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2ODVmYjk2MmI2NDZiY2ZkMmYwYzJjMjEiLCJpYXQiOjE3NTExMDM4NDIsImV4cCI6MTc1MTE5MDI0Mn0.uvrnmHmMlAXxt8g2psFSn0Ud0-w-qar1C-HSvskhNa8",
+							"protocol": "https",
+							"host": [
+								"beti-food-backend",
+								"vercel",
+								"app"
+							],
+							"path": [
+								"api",
+								"auth",
+								"verify"
+							],
+							"query": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2ODVmYjk2MmI2NDZiY2ZkMmYwYzJjMjEiLCJpYXQiOjE3NTExMDM4NDIsImV4cCI6MTc1MTE5MDI0Mn0.uvrnmHmMlAXxt8g2psFSn0Ud0-w-qar1C-HSvskhNa8"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Reset Password",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": ""
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Cart Api",
+			"item": [
+				{
+					"name": "get cart",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2ODY5MmY5MDA0MWNlYjE1NmJhNDJiMzQiLCJyb2xlIjoiY2xpZW50IiwiaWF0IjoxNzUxNzI0MDk2LCJleHAiOjE3NTIzMjg4OTZ9.zon_a7e83P_8QG-9SLMcvMF8igu5y1pedVK2htRTiAs",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://localhost:3000/api/cart",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"api",
+								"cart"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "add to cart",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2ODY5MmY5MDA0MWNlYjE1NmJhNDJiMzQiLCJyb2xlIjoiY2xpZW50IiwiaWF0IjoxNzUxNzI0MDk2LCJleHAiOjE3NTIzMjg4OTZ9.zon_a7e83P_8QG-9SLMcvMF8igu5y1pedVK2htRTiAs",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"mealId\": \"6867e8f96b9c9bf9534ab1c8\",\r\n    \"quantity\": 1\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://localhost:3000/api/cart/add",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"api",
+								"cart",
+								"add"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update cart",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2ODY5MmY5MDA0MWNlYjE1NmJhNDJiMzQiLCJyb2xlIjoiY2xpZW50IiwiaWF0IjoxNzUxNzI0MDk2LCJleHAiOjE3NTIzMjg4OTZ9.zon_a7e83P_8QG-9SLMcvMF8igu5y1pedVK2htRTiAs",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"mealId\":\"6867e8f96b9c9bf9534ab1c8\",\r\n    \"quantity\":\"2\"\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://localhost:3000/api/cart/update",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"api",
+								"cart",
+								"update"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Delete  Meal From Cart",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2ODY5MmY5MDA0MWNlYjE1NmJhNDJiMzQiLCJyb2xlIjoiY2xpZW50IiwiaWF0IjoxNzUxNzI0MDk2LCJleHAiOjE3NTIzMjg4OTZ9.zon_a7e83P_8QG-9SLMcvMF8igu5y1pedVK2htRTiAs",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "http://localhost:3000/api/cart/remove/6867e8f96b9c9bf9534ab1c8",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"api",
+								"cart",
+								"remove",
+								"6867e8f96b9c9bf9534ab1c8"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "clear cart",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2ODY5MmY5MDA0MWNlYjE1NmJhNDJiMzQiLCJyb2xlIjoiY2xpZW50IiwiaWF0IjoxNzUxNzI0MDk2LCJleHAiOjE3NTIzMjg4OTZ9.zon_a7e83P_8QG-9SLMcvMF8igu5y1pedVK2htRTiAs",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "http://localhost:3000/api/cart/clear",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"api",
+								"cart",
+								"clear"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "meals",
+			"item": [
+				{
+					"name": "get all  meals",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2ODY3Y2ZhMWU3MzU5MmFhNzU0NWMwYTAiLCJyb2xlIjoiY2xpZW50IiwiaWF0IjoxNzUxNjM0MDg3LCJleHAiOjE3NTIyMzg4ODd9.14BaxkopioDrxRJoxjM3W9lgWuMau9dTqtfd2Jz2p6c",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [
+							{
+								"key": "",
+								"value": "",
+								"type": "text",
+								"disabled": true
+							}
+						],
+						"url": {
+							"raw": "http://localhost:3000/api/meals",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"api",
+								"meals"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "get meal by id",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:3000/api/meals/6867e8f96b9c9bf9534ab1c8",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"api",
+								"meals",
+								"6867e8f96b9c9bf9534ab1c8"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Meals by Category",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{localhost}}/api/meals/category/6867b89d12f9488daf3cd536",
+							"host": [
+								"{{localhost}}"
+							],
+							"path": [
+								"api",
+								"meals",
+								"category",
+								"6867b89d12f9488daf3cd536"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "search",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:3000/api/meals?category=فطائر&maxPrice=25\n",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"api",
+								"meals"
+							],
+							"query": [
+								{
+									"key": "category",
+									"value": "فطائر"
+								},
+								{
+									"key": "maxPrice",
+									"value": "25\n"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Admin",
+			"item": [
+				{
+					"name": "Manage users",
+					"item": [
+						{
+							"name": "Get users",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": ""
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Add user",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2ODY3NDk2NTlhNWZkYjg0ZjMyZWY1MzciLCJyb2xlIjoiYWRtaW4iLCJpYXQiOjE3NTE1OTk1NDcsImV4cCI6MTc1MjIwNDM0N30.0XXX4k6IGj8DzUFTPuaS-XWVa8e58XSMUmZP7tMgMVM",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "// {\r\n//   \"name\": \"Cook User\",\r\n//   \"email\": \"Cook_User@example.com\",\r\n//   \"password\": \"Password123!\",\r\n//   \"phone\": \"1234567890\", \r\n//   \"address\": \"cairo\",\r\n//   \"role\": \"cook\",\r\n//   \"isVerified\": true\r\n// }\r\n// {\r\n//   \"name\": \"Client User\",\r\n//   \"email\": \"Client_User@example.com\",\r\n//   \"password\": \"Password123!\",\r\n//   \"phone\": \"1234567890\", \r\n//   \"address\": \"cairo\",\r\n//   \"role\": \"client\",\r\n//   \"isVerified\": true\r\n// }\r\n{\r\n  \"name\": \"delivery User\",\r\n  \"email\": \"Delivery_User@example.com\",\r\n  \"password\": \"Password123!\",\r\n  \"phone\": \"1234567890\", \r\n  \"address\": \"شبين-المنوفية\",\r\n  \"role\": \"delivery\",\r\n  \"isVerified\": true\r\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{localhost}}/api/admin/users",
+									"host": [
+										"{{localhost}}"
+									],
+									"path": [
+										"api",
+										"admin",
+										"users"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Update user",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2ODY3NGNhYTBhYWFhYWY5YmJjZmQzMzUiLCJyb2xlIjoiY29vayIsImlhdCI6MTc1MTY0MjU0MiwiZXhwIjoxNzUyMjQ3MzQyfQ.pog-pOsJ4SwikvueX1LxCM6PBZcCt1SO058th56uDRI",
+											"type": "string"
+										}
+									]
+								},
+								"method": "PUT",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n    \"name\": \"امنية الشناوي\"\r\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{localhost}}/api/admin/users/68674caa0aaaaaf9bbcfd335",
+									"host": [
+										"{{localhost}}"
+									],
+									"path": [
+										"api",
+										"admin",
+										"users",
+										"68674caa0aaaaaf9bbcfd335"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Delete user",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": ""
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Manage mealsCategories",
+					"item": [
+						{
+							"name": "Get active Catgories",
+							"protocolProfileBehavior": {
+								"disableBodyPruning": true
+							},
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2ODY3NDk2NTlhNWZkYjg0ZjMyZWY1MzciLCJyb2xlIjoiYWRtaW4iLCJpYXQiOjE3NTE2Mjc3MjAsImV4cCI6MTc1MjIzMjUyMH0.XKThuXclpSoK5SZaHQ4DLqv--Z06aemhMJm9vIqGYTk",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "// {\r\n//   \"name\": \"Cook User\",\r\n//   \"email\": \"Cook_User@example.com\",\r\n//   \"password\": \"Password123!\",\r\n//   \"phone\": \"1234567890\", \r\n//   \"address\": \"cairo\",\r\n//   \"role\": \"cook\",\r\n//   \"isVerified\": true\r\n// }\r\n// {\r\n//   \"name\": \"Client User\",\r\n//   \"email\": \"Client_User@example.com\",\r\n//   \"password\": \"Password123!\",\r\n//   \"phone\": \"1234567890\", \r\n//   \"address\": \"cairo\",\r\n//   \"role\": \"client\",\r\n//   \"isVerified\": true\r\n// }\r\n{\r\n  \"name\": \"delivery User\",\r\n  \"email\": \"Delivery_User@example.com\",\r\n  \"password\": \"Password123!\",\r\n  \"phone\": \"1234567890\", \r\n  \"address\": \"شبين-المنوفية\",\r\n  \"role\": \"delivery\",\r\n  \"isVerified\": true\r\n}"
+								},
+								"url": {
+									"raw": "{{localhost}}/api/categories",
+									"host": [
+										"{{localhost}}"
+									],
+									"path": [
+										"api",
+										"categories"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get All Catgories",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2ODY3NDk2NTlhNWZkYjg0ZjMyZWY1MzciLCJyb2xlIjoiYWRtaW4iLCJpYXQiOjE3NTE2Mjc3MjAsImV4cCI6MTc1MjIzMjUyMH0.XKThuXclpSoK5SZaHQ4DLqv--Z06aemhMJm9vIqGYTk",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{localhost}}/api/categories?includeInactive=true",
+									"host": [
+										"{{localhost}}"
+									],
+									"path": [
+										"api",
+										"categories"
+									],
+									"query": [
+										{
+											"key": "includeInactive",
+											"value": "true"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get Category by ID",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2ODY3NDk2NTlhNWZkYjg0ZjMyZWY1MzciLCJyb2xlIjoiYWRtaW4iLCJpYXQiOjE3NTE2Mjc3MjAsImV4cCI6MTc1MjIzMjUyMH0.XKThuXclpSoK5SZaHQ4DLqv--Z06aemhMJm9vIqGYTk",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{localhost}}/api/categories/6867b91312f9488daf3cd544",
+									"host": [
+										"{{localhost}}"
+									],
+									"path": [
+										"api",
+										"categories",
+										"6867b91312f9488daf3cd544"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Create Category",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2ODY3NDk2NTlhNWZkYjg0ZjMyZWY1MzciLCJyb2xlIjoiYWRtaW4iLCJpYXQiOjE3NTE2Mjc3MjAsImV4cCI6MTc1MjIzMjUyMH0.XKThuXclpSoK5SZaHQ4DLqv--Z06aemhMJm9vIqGYTk",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n    \"name\": \"المشروبات\",\r\n    \"description\": \"مشروبات باردة وساخنة تشمل العصائر الطبيعية، القهوة، الشاي، والمشروبات الغازية.\"\r\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{localhost}}/api/categories",
+									"host": [
+										"{{localhost}}"
+									],
+									"path": [
+										"api",
+										"categories"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Update Category by ID",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2ODY3NDk2NTlhNWZkYjg0ZjMyZWY1MzciLCJyb2xlIjoiYWRtaW4iLCJpYXQiOjE3NTE2Mjc3MjAsImV4cCI6MTc1MjIzMjUyMH0.XKThuXclpSoK5SZaHQ4DLqv--Z06aemhMJm9vIqGYTk",
+											"type": "string"
+										}
+									]
+								},
+								"method": "PUT",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n    \"description\": \"خليط من الخضروات الطازجة والتتبيلات الصحية، مثالية للأشخاص الذين يبحثوا عن وجبة خفيفة.\"\r\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{localhost}}/api/categories/6867b91312f9488daf3cd544",
+									"host": [
+										"{{localhost}}"
+									],
+									"path": [
+										"api",
+										"categories",
+										"6867b91312f9488daf3cd544"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Delete Category by ID",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2ODY3NDk2NTlhNWZkYjg0ZjMyZWY1MzciLCJyb2xlIjoiYWRtaW4iLCJpYXQiOjE3NTE2Mjc3MjAsImV4cCI6MTc1MjIzMjUyMH0.XKThuXclpSoK5SZaHQ4DLqv--Z06aemhMJm9vIqGYTk",
+											"type": "string"
+										}
+									]
+								},
+								"method": "DELETE",
+								"header": [],
+								"url": {
+									"raw": "{{localhost}}/api/categories/6867b91312f9488daf3cd544",
+									"host": [
+										"{{localhost}}"
+									],
+									"path": [
+										"api",
+										"categories",
+										"6867b91312f9488daf3cd544"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "Cook",
+			"item": [
+				{
+					"name": "Mange Meals",
+					"item": [
+						{
+							"name": "get all  meals",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2ODY3NGNhYTBhYWFhYWY5YmJjZmQzMzUiLCJyb2xlIjoiY29vayIsImlhdCI6MTc1MTYzNjM2NywiZXhwIjoxNzUyMjQxMTY3fQ.eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2ODY3NGNhYTBhYWFhYWY5YmJjZmQzMzUiLCJyb2xlIjoiY29vayIsImlhdCI6MTc1MTYzNzYyOCwiZXhwIjoxNzUyMjQyNDI4fQ.2h6iG6S0SnBeUQtvMwjVp2wosfViARsnWtSfyQfC_5Q",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [
+									{
+										"key": "",
+										"value": "",
+										"type": "text",
+										"disabled": true
+									}
+								],
+								"url": {
+									"raw": "http://localhost:3000/api/meals",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "3000",
+									"path": [
+										"api",
+										"meals"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "get meal by id",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "http://localhost:3000/api/meals/6867d9bafddad4c8c55ee5ed",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "3000",
+									"path": [
+										"api",
+										"meals",
+										"6867d9bafddad4c8c55ee5ed"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get Meals by Category",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2ODY3NGNhYTBhYWFhYWY5YmJjZmQzMzUiLCJyb2xlIjoiY29vayIsImlhdCI6MTc1MTYzNjM2NywiZXhwIjoxNzUyMjQxMTY3fQ.eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2ODY3NGNhYTBhYWFhYWY5YmJjZmQzMzUiLCJyb2xlIjoiY29vayIsImlhdCI6MTc1MTYzNzYyOCwiZXhwIjoxNzUyMjQyNDI4fQ.2h6iG6S0SnBeUQtvMwjVp2wosfViARsnWtSfyQfC_5Q",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{localhost}}/api/meals/category/6867b89d12f9488daf3cd536",
+									"host": [
+										"{{localhost}}"
+									],
+									"path": [
+										"api",
+										"meals",
+										"category",
+										"6867b89d12f9488daf3cd536"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get Cook meals",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2ODY3NGNhYTBhYWFhYWY5YmJjZmQzMzUiLCJyb2xlIjoiY29vayIsImlhdCI6MTc1MTYzNzYyOCwiZXhwIjoxNzUyMjQyNDI4fQ.2h6iG6S0SnBeUQtvMwjVp2wosfViARsnWtSfyQfC_5Q",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{localhost}}/api/meals/myMeals",
+									"host": [
+										"{{localhost}}"
+									],
+									"path": [
+										"api",
+										"meals",
+										"myMeals"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "add meal",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2ODY3Zjc3M2FiYjVmMTQxNzJmYjZkODYiLCJyb2xlIjoiY29vayIsImlhdCI6MTc1MTY0NDA0NCwiZXhwIjoxNzUyMjQ4ODQ0fQ.J57XH5hwzxPZ0D15e0nPhGIAMTgqhbj1ByxQFJudmfk",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2ODYyNmMxYzcyNmExZjE5ZjI5ZGUxNWYiLCJyb2xlIjoiY29vayIsImlhdCI6MTc1MTI4MDgyNSwiZXhwIjoxNzUxODg1NjI1fQ.v-sz4byeflJ-krqLJ9DOjOtqitCSoExCEpB987ITJW0",
+										"type": "text"
+									},
+									{
+										"key": "Content-Type",
+										"value": "multipart/form-data",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "formdata",
+									"formdata": [
+										{
+											"key": "name",
+											"value": "سمبوسة بالجبن",
+											"type": "text"
+										},
+										{
+											"key": "description",
+											"value": "عجينة مقرمشة محشوة بالجبن ومقلية",
+											"type": "text"
+										},
+										{
+											"key": "price",
+											"value": "60",
+											"type": "text"
+										},
+										{
+											"key": "categoryName",
+											"value": "المقبلات",
+											"type": "text"
+										},
+										{
+											"key": "quantity",
+											"value": "40",
+											"type": "text"
+										},
+										{
+											"key": "images",
+											"type": "file",
+											"src": [
+												"/C:/Users/alifa/OneDrive/Desktop/Meals images/مقبلات/سمبوسة بالجبن (2).jpg",
+												"/C:/Users/alifa/OneDrive/Desktop/Meals images/مقبلات/سمبوسة بالجبن (3).jpg",
+												"/C:/Users/alifa/OneDrive/Desktop/Meals images/مقبلات/سمبوسة بالجبن.jpg"
+											]
+										}
+									]
+								},
+								"url": {
+									"raw": "{{production}}/api/meals/",
+									"host": [
+										"{{production}}"
+									],
+									"path": [
+										"api",
+										"meals",
+										""
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Update Meal",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2ODY3NGNhYTBhYWFhYWY5YmJjZmQzMzUiLCJyb2xlIjoiY29vayIsImlhdCI6MTc1MTY0MjU0MiwiZXhwIjoxNzUyMjQ3MzQyfQ.pog-pOsJ4SwikvueX1LxCM6PBZcCt1SO058th56uDRI",
+											"type": "string"
+										}
+									]
+								},
+								"method": "PUT",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2ODYyNmMxYzcyNmExZjE5ZjI5ZGUxNWYiLCJyb2xlIjoiY29vayIsImlhdCI6MTc1MTI4MDgyNSwiZXhwIjoxNzUxODg1NjI1fQ.v-sz4byeflJ-krqLJ9DOjOtqitCSoExCEpB987ITJW0",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": " { \r\n    \"price\":200\r\n }",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{localhost}}/api/meals/6867e8f96b9c9bf9534ab1c8",
+									"host": [
+										"{{localhost}}"
+									],
+									"path": [
+										"api",
+										"meals",
+										"6867e8f96b9c9bf9534ab1c8"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Delete Meal",
+							"request": {
+								"method": "DELETE",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2ODYyNmMxYzcyNmExZjE5ZjI5ZGUxNWYiLCJyb2xlIjoiY29vayIsImlhdCI6MTc1MTI4MDgyNSwiZXhwIjoxNzUxODg1NjI1fQ.v-sz4byeflJ-krqLJ9DOjOtqitCSoExCEpB987ITJW0",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "http://localhost:3000/api/meals/68626f94726a1f19f29de16b",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "3000",
+									"path": [
+										"api",
+										"meals",
+										"68626f94726a1f19f29de16b"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "Categories",
+			"item": [
+				{
+					"name": "Get all categories (active)",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2ODY3NDk2NTlhNWZkYjg0ZjMyZWY1MzciLCJyb2xlIjoiYWRtaW4iLCJpYXQiOjE3NTE2Mjc3MjAsImV4cCI6MTc1MjIzMjUyMH0.XKThuXclpSoK5SZaHQ4DLqv--Z06aemhMJm9vIqGYTk",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "// {\r\n//   \"name\": \"Cook User\",\r\n//   \"email\": \"Cook_User@example.com\",\r\n//   \"password\": \"Password123!\",\r\n//   \"phone\": \"1234567890\", \r\n//   \"address\": \"cairo\",\r\n//   \"role\": \"cook\",\r\n//   \"isVerified\": true\r\n// }\r\n// {\r\n//   \"name\": \"Client User\",\r\n//   \"email\": \"Client_User@example.com\",\r\n//   \"password\": \"Password123!\",\r\n//   \"phone\": \"1234567890\", \r\n//   \"address\": \"cairo\",\r\n//   \"role\": \"client\",\r\n//   \"isVerified\": true\r\n// }\r\n{\r\n  \"name\": \"delivery User\",\r\n  \"email\": \"Delivery_User@example.com\",\r\n  \"password\": \"Password123!\",\r\n  \"phone\": \"1234567890\", \r\n  \"address\": \"شبين-المنوفية\",\r\n  \"role\": \"delivery\",\r\n  \"isVerified\": true\r\n}"
+						},
+						"url": {
+							"raw": "{{localhost}}/api/categories",
+							"host": [
+								"{{localhost}}"
+							],
+							"path": [
+								"api",
+								"categories"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Category by ID",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2ODY3NDk2NTlhNWZkYjg0ZjMyZWY1MzciLCJyb2xlIjoiYWRtaW4iLCJpYXQiOjE3NTE2Mjc3MjAsImV4cCI6MTc1MjIzMjUyMH0.XKThuXclpSoK5SZaHQ4DLqv--Z06aemhMJm9vIqGYTk",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{localhost}}/api/categories/6867b91312f9488daf3cd544",
+							"host": [
+								"{{localhost}}"
+							],
+							"path": [
+								"api",
+								"categories",
+								"6867b91312f9488daf3cd544"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Orders",
+			"item": [
+				{
+					"name": "get all orders",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2ODY5MmY5MDA0MWNlYjE1NmJhNDJiMzQiLCJyb2xlIjoiY2xpZW50IiwiaWF0IjoxNzUxODcwMDAwLCJleHAiOjE3NTI0NzQ4MDB9.mF9QyAa_Xr2UWvqkHq6_0rHqPb2waHQgYwEnl9fPu9U",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "http://localhost:3000/api/orders/allOrders",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"api",
+								"orders",
+								"allOrders"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "order Id",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2ODY5MmY5MDA0MWNlYjE1NmJhNDJiMzQiLCJyb2xlIjoiY2xpZW50IiwiaWF0IjoxNzUxODcwMDAwLCJleHAiOjE3NTI0NzQ4MDB9.mF9QyAa_Xr2UWvqkHq6_0rHqPb2waHQgYwEnl9fPu9U",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://localhost:3000/api/orders/order/686e7a84e2bf86a482595ec5",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"api",
+								"orders",
+								"order",
+								"686e7a84e2bf86a482595ec5"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Order",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2ODY5MmY5MDA0MWNlYjE1NmJhNDJiMzQiLCJyb2xlIjoiY2xpZW50IiwiaWF0IjoxNzUxODcwMDAwLCJleHAiOjE3NTI0NzQ4MDB9.mF9QyAa_Xr2UWvqkHq6_0rHqPb2waHQgYwEnl9fPu9U",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"status\": \"delivered\" \r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://localhost:3000/api/orders/updateStatus/686b7916e4a659eea1f8c6fc",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"api",
+								"orders",
+								"updateStatus",
+								"686b7916e4a659eea1f8c6fc"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Order",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2ODY5MmY5MDA0MWNlYjE1NmJhNDJiMzQiLCJyb2xlIjoiY2xpZW50IiwiaWF0IjoxNzUxODcwMDAwLCJleHAiOjE3NTI0NzQ4MDB9.mF9QyAa_Xr2UWvqkHq6_0rHqPb2waHQgYwEnl9fPu9U",
+								"type": "text"
+							},
+							{
+								"key": "",
+								"value": "",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "http://localhost:3000/api/orders/deleteOrder/686bb9a44d41403af5d14650",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"api",
+								"orders",
+								"deleteOrder",
+								"686bb9a44d41403af5d14650"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "checkout",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2ODY5MmY5MDA0MWNlYjE1NmJhNDJiMzQiLCJyb2xlIjoiY2xpZW50IiwiaWF0IjoxNzUxODcwMDAwLCJleHAiOjE3NTI0NzQ4MDB9.mF9QyAa_Xr2UWvqkHq6_0rHqPb2waHQgYwEnl9fPu9U",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://localhost:3000/api/orders/checkout",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "3000",
+							"path": [
+								"api",
+								"orders",
+								"checkout"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		}
+	]
+}
