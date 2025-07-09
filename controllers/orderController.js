@@ -23,7 +23,7 @@ exports.createOrder = asyncHandler(async (req, res) => {
     total_price: item.quantity * item.unit_price,
   }));
 
-  // إضافة userId للطلب (المستخدم المسجل)
+  // إضافة clientId للطلب (المستخدم المسجل)
   const order = await Order.create({
     customer_name,
     phone,
@@ -31,7 +31,7 @@ exports.createOrder = asyncHandler(async (req, res) => {
     items: processedItems,
     total_price,
     payment_method,
-    userId: req.user._id, // إضافة معرف المستخدم
+    clientId: req.user._id, // إضافة معرف العميل
   });
 
   res.status(201).json({
@@ -42,7 +42,7 @@ exports.createOrder = asyncHandler(async (req, res) => {
 
 exports.getAllOrders = asyncHandler(async (req, res) => {
   // يرجع فقط طلبات العميل
-  const orders = await Order.find({ userId: req.user._id }).sort({
+  const orders = await Order.find({ clientId: req.user._id }).sort({
     createdAt: -1,
   });
   res.json({
@@ -72,7 +72,7 @@ exports.getOrderById = asyncHandler(async (req, res) => {
   }
   // العميل يمكنه رؤية طلباته فقط
   else if (req.user.role === "client") {
-    if (order.userId.toString() === req.user._id.toString()) {
+    if (order.clientId.toString() === req.user._id.toString()) {
       res.json({
         success: true,
         data: order,
@@ -115,7 +115,7 @@ exports.updateOrderStatus = asyncHandler(async (req, res) => {
   // التحقق من الصلاحيات
   // العميل يمكنه تحديث طلباته فقط
   if (req.user.role === "client") {
-    if (order.userId.toString() !== req.user._id.toString()) {
+    if (order.clientId.toString() !== req.user._id.toString()) {
       return res.status(403).json({
         message: "غير مصرح لك بتحديث هذا الطلب",
       });
@@ -155,7 +155,7 @@ exports.deleteOrder = asyncHandler(async (req, res) => {
   // التحقق من الصلاحيات
   // العميل يمكنه حذف طلباته فقط
   if (req.user.role === "client") {
-    if (order.userId.toString() !== req.user._id.toString()) {
+    if (order.clientId.toString() !== req.user._id.toString()) {
       return res.status(403).json({
         message: "غير مصرح لك بحذف هذا الطلب",
       });
@@ -182,10 +182,10 @@ exports.deleteOrder = asyncHandler(async (req, res) => {
 });
 
 exports.checkout = asyncHandler(async (req, res) => {
-  const userId = req.user._id;
+  const clientId = req.user._id;
 
   // جلب بيانات المستخدم
-  const user = await User.findById(userId);
+  const user = await User.findById(clientId);
   if (!user) {
     return res
       .status(404)
@@ -205,7 +205,7 @@ exports.checkout = asyncHandler(async (req, res) => {
   }
 
   // تحقق من وجود عناصر في السلة فقط
-  const cart = await Cart.findOne({ clientId: userId });
+  const cart = await Cart.findOne({ clientId });
   if (cart && cart.items && cart.items.length > 0) {
     // جلب بيانات الوجبات
     const mealIds = cart.items.map((item) => item.mealId);
@@ -243,7 +243,7 @@ exports.checkout = asyncHandler(async (req, res) => {
       items,
       total_price,
       payment_method: "cash",
-      userId,
+      clientId,
     });
 
     // تفريغ السلة

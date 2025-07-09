@@ -141,18 +141,16 @@ const addToCart = asyncHandler(async (req, res) => {
     return sum + item.mealId.price * item.quantity;
   }, 0);
 
-  // تجهيز ملخص السلة
-  const summary = buildCartSummary(cart, total, cart.getItemCount());
   res.status(200).json({
-    success: true,
-    message: "تم إضافة الوجبة للكارت بنجاح",
-    cartId: summary.cartId,
-    client: summary.client,
-    meals: summary.meals,
-    lastUpdated: summary.lastUpdated,
-    expiresOn: summary.expiresOn,
-    totalPrice: summary.totalPrice,
-    itemCount: summary.itemCount,
+    clientId: cart.clientId?._id?.toString() || cart.clientId?.toString(),
+    meals: cart.meals.map((m) => ({
+      mealId: m.mealId?._id?.toString() || m.mealId?.toString(),
+      quantity: m.quantity,
+      _id: m._id?.toString(),
+    })),
+    updatedAt: cart.updatedAt,
+    expiresAt: cart.expiresAt,
+    __v: cart.__v,
   });
 });
 
@@ -172,37 +170,23 @@ const getCart = asyncHandler(async (req, res) => {
 
   if (!cart || cart.meals.length === 0) {
     return res.status(200).json({
-      success: true,
-      message: "عربة الوجبات فارغ",
-      cartId: null,
       clientId: clientId?.toString(),
       meals: [],
-      lastUpdated: null,
-      expiresOn: null,
-      totalPrice: "0 جنيه",
-      itemCount: 0,
+      updatedAt: null,
+      expiresAt: null,
+      __v: cart ? cart.__v : 0,
     });
   }
-
-  // حساب الإجمالي وعدد العناصر
-  const total = cart.meals.reduce((sum, item) => {
-    return sum + item.mealId.price * item.quantity;
-  }, 0);
-
-  const itemCount = cart.getItemCount();
-
-  // تجهيز ملخص السلة
-  const summary = buildCartSummary(cart, total, itemCount);
   res.status(200).json({
-    success: true,
-    message: "تم جلب عربة الوجبات بنجاح",
-    cartId: summary.cartId,
-    client: summary.client,
-    meals: summary.meals,
-    lastUpdated: summary.lastUpdated,
-    expiresOn: summary.expiresOn,
-    totalPrice: summary.totalPrice,
-    itemCount: summary.itemCount,
+    clientId: cart.clientId?._id?.toString() || cart.clientId?.toString(),
+    meals: cart.meals.map((m) => ({
+      mealId: m.mealId?._id?.toString() || m.mealId?.toString(),
+      quantity: m.quantity,
+      _id: m._id?.toString(),
+    })),
+    updatedAt: cart.updatedAt,
+    expiresAt: cart.expiresAt,
+    __v: cart.__v,
   });
 });
 
@@ -270,18 +254,16 @@ const updateCartItem = asyncHandler(async (req, res) => {
     return sum + item.mealId.price * item.quantity;
   }, 0);
 
-  // تجهيز ملخص السلة
-  const summary = buildCartSummary(cart, total, cart.getItemCount());
   res.status(200).json({
-    success: true,
-    message: "تم تحديث عربة الوجبات بنجاح",
-    cartId: summary.cartId,
-    client: summary.client,
-    meals: summary.meals,
-    lastUpdated: summary.lastUpdated,
-    expiresOn: summary.expiresOn,
-    totalPrice: summary.totalPrice,
-    itemCount: summary.itemCount,
+    clientId: cart.clientId?._id?.toString() || cart.clientId?.toString(),
+    meals: cart.meals.map((m) => ({
+      mealId: m.mealId?._id?.toString() || m.mealId?.toString(),
+      quantity: m.quantity,
+      _id: m._id?.toString(),
+    })),
+    updatedAt: cart.updatedAt,
+    expiresAt: cart.expiresAt,
+    __v: cart.__v,
   });
 });
 
@@ -330,18 +312,16 @@ const removeFromCart = asyncHandler(async (req, res) => {
     return sum + item.mealId.price * item.quantity;
   }, 0);
 
-  // تجهيز ملخص السلة
-  const summary = buildCartSummary(cart, total, cart.getItemCount());
   res.status(200).json({
-    success: true,
-    message: "تم حذف الوجبة من عربة الوجبات بنجاح",
-    cartId: summary.cartId,
-    client: summary.client,
-    meals: summary.meals,
-    lastUpdated: summary.lastUpdated,
-    expiresOn: summary.expiresOn,
-    totalPrice: summary.totalPrice,
-    itemCount: summary.itemCount,
+    clientId: cart.clientId?._id?.toString() || cart.clientId?.toString(),
+    meals: cart.meals.map((m) => ({
+      mealId: m.mealId?._id?.toString() || m.mealId?.toString(),
+      quantity: m.quantity,
+      _id: m._id?.toString(),
+    })),
+    updatedAt: cart.updatedAt,
+    expiresAt: cart.expiresAt,
+    __v: cart.__v,
   });
 });
 
@@ -370,18 +350,12 @@ const clearCart = asyncHandler(async (req, res) => {
     path: "clientId",
     select: "name",
   });
-  // تجهيز ملخص السلة
-  const summary = buildCartSummary(cart, 0, 0);
   res.status(200).json({
-    success: true,
-    message: "تم مسح عربة الوجبات بنجاح",
-    cartId: summary.cartId,
-    client: summary.client,
-    meals: summary.meals,
-    lastUpdated: summary.lastUpdated,
-    expiresOn: summary.expiresOn,
-    totalPrice: summary.totalPrice,
-    itemCount: summary.itemCount,
+    clientId: cart.clientId?._id?.toString() || cart.clientId?.toString(),
+    meals: [],
+    updatedAt: cart.updatedAt,
+    expiresAt: cart.expiresAt,
+    __v: cart.__v,
   });
 });
 
