@@ -9,6 +9,7 @@ const {
   updateCookReview,
   deleteCookReview,
   getAllCookReviews,
+  getTopRatedCookReviews,
 } = require("../controllers/cookReviewController");
 
 const {
@@ -16,6 +17,9 @@ const {
   requireClientRole,
   requireAdminRole,
 } = require("../middleware/authMiddleware");
+
+// Client route to get top-rated cook reviews
+router.get("/top-rated", protect, requireClientRole, getTopRatedCookReviews);
 
 // Public routes
 router.get("/cook/:cookId", getCookReviews); // Get reviews for a specific cook
