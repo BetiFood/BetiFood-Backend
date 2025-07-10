@@ -5,6 +5,9 @@ const Meal = require("../models/Meal");
 const User = require("../models/User");
 
 exports.createOrder = asyncHandler(async (req, res) => {
+  if (!req.user || !req.user._id) {
+    return res.status(401).json({ success: false, message: "يجب تسجيل الدخول أولاً" });
+  }
   const { customer_name, phone, address, items, payment_method } = req.body;
 
   // Validation
@@ -41,6 +44,9 @@ exports.createOrder = asyncHandler(async (req, res) => {
 });
 
 exports.getAllOrders = asyncHandler(async (req, res) => {
+  if (!req.user || !req.user._id) {
+    return res.status(401).json({ success: false, message: "يجب تسجيل الدخول أولاً" });
+  }
   // يرجع فقط طلبات العميل
   const orders = await Order.find({ clientId: req.user._id }).sort({
     createdAt: -1,
@@ -53,6 +59,9 @@ exports.getAllOrders = asyncHandler(async (req, res) => {
 });
 
 exports.getOrderById = asyncHandler(async (req, res) => {
+  if (!req.user || !req.user._id) {
+    return res.status(401).json({ success: false, message: "يجب تسجيل الدخول أولاً" });
+  }
   const order = await Order.findById(req.params.id);
   if (!order) {
     return res.status(404).json({ message: "الطلب غير موجود" });
@@ -90,6 +99,9 @@ exports.getOrderById = asyncHandler(async (req, res) => {
 });
 
 exports.updateOrderStatus = asyncHandler(async (req, res) => {
+  if (!req.user || !req.user._id) {
+    return res.status(401).json({ success: false, message: "يجب تسجيل الدخول أولاً" });
+  }
   const { status } = req.body;
 
   // Validation for status
@@ -147,6 +159,9 @@ exports.updateOrderStatus = asyncHandler(async (req, res) => {
 });
 
 exports.deleteOrder = asyncHandler(async (req, res) => {
+  if (!req.user || !req.user._id) {
+    return res.status(401).json({ success: false, message: "يجب تسجيل الدخول أولاً" });
+  }
   const order = await Order.findById(req.params.id);
   if (!order) {
     return res.status(404).json({ message: "الطلب غير موجود" });
@@ -182,6 +197,9 @@ exports.deleteOrder = asyncHandler(async (req, res) => {
 });
 
 exports.checkout = asyncHandler(async (req, res) => {
+  if (!req.user || !req.user._id) {
+    return res.status(401).json({ success: false, message: "يجب تسجيل الدخول أولاً" });
+  }
   const clientId = req.user._id;
 
   // جلب بيانات المستخدم
