@@ -46,6 +46,9 @@ async function updateMealRating(mealId) {
 // Add a new meal review
 async function addMealReview(req, res) {
   try {
+    if (!req.user || !req.user._id) {
+      return res.status(401).json({ success: false, message: "يجب تسجيل الدخول أولاً" });
+    }
     const { mealId, rating, comment } = req.body;
     const clientId = req.user._id;
 
@@ -144,6 +147,9 @@ async function addMealReview(req, res) {
 // Get all reviews for a specific meal
 async function getMealReviews(req, res) {
   try {
+    if (!req.user || !req.user._id) {
+      return res.status(401).json({ success: false, message: "يجب تسجيل الدخول أولاً" });
+    }
     const { mealId } = req.params;
     const { page = 1, limit = 10, sort = "newest" } = req.query;
 
@@ -243,6 +249,9 @@ async function getMealReviews(req, res) {
 // Get all meal reviews by a specific client
 async function getClientMealReviews(req, res) {
   try {
+    if (!req.user || !req.user._id) {
+      return res.status(401).json({ success: false, message: "يجب تسجيل الدخول أولاً" });
+    }
     const { clientId } = req.params;
     const { page = 1, limit = 10 } = req.query;
 
@@ -295,6 +304,9 @@ async function getClientMealReviews(req, res) {
 // Get a specific meal review by ID
 async function getMealReviewById(req, res) {
   try {
+    if (!req.user || !req.user._id) {
+      return res.status(401).json({ success: false, message: "يجب تسجيل الدخول أولاً" });
+    }
     const review = await MealReview.findById(req.params.id);
 
     if (!review) {
@@ -322,6 +334,9 @@ async function getMealReviewById(req, res) {
 // Update a meal review (only by the client who created it)
 async function updateMealReview(req, res) {
   try {
+    if (!req.user || !req.user._id) {
+      return res.status(401).json({ success: false, message: "يجب تسجيل الدخول أولاً" });
+    }
     const { rating, comment } = req.body;
     const reviewId = req.params.id;
     const clientId = req.user._id;
@@ -398,6 +413,9 @@ async function updateMealReview(req, res) {
 // Delete a meal review (soft delete by setting isActive to false)
 async function deleteMealReview(req, res) {
   try {
+    if (!req.user || !req.user._id) {
+      return res.status(401).json({ success: false, message: "يجب تسجيل الدخول أولاً" });
+    }
     const reviewId = req.params.id;
     const clientId = req.user._id;
 
@@ -444,6 +462,9 @@ async function deleteMealReview(req, res) {
 // Get all meal reviews (admin function)
 async function getAllMealReviews(req, res) {
   try {
+    if (!req.user || !req.user._id) {
+      return res.status(401).json({ success: false, message: "يجب تسجيل الدخول أولاً" });
+    }
     const { page = 1, limit = 20, mealId, clientId, isActive } = req.query;
 
     // Build filter

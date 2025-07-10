@@ -3,11 +3,10 @@ const { sendResponse } = require("../utils/response.js");
 
 const errorHandler = (error, req, res, next) => {
   const isDev = process.env.NODE_ENV === "dev";
-  return sendResponse(res, {
-    statusCode: error.statusCode || 500,
+  res.status(error.statusCode || 500).json({
     success: false,
     message: error.message || "خطأ في الخادم الداخلي",
-    ...(isDev && { stack: error.stack }),
+    ...(isDev && error.stack ? { stack: error.stack } : {})
   });
 };
 

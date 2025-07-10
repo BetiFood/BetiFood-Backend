@@ -57,6 +57,7 @@ function buildCartSummary(cart, total, itemCount) {
     itemCount: itemCount,
   };
 }
+
 const Cart = require("../models/Cart");
 const Meal = require("../models/Meal");
 const asyncHandler = require("../utils/asyncHandler");
@@ -64,37 +65,32 @@ const { ApiResponse } = require("../utils/response");
 
 // إضافة وجبة للكارت
 const addToCart = asyncHandler(async (req, res) => {
-  const { mealId, quantity = 1 } = req.body;
+  if (!req.user || !req.user._id) {
+    return res
+      .status(401)
+      .json({ success: false, message: "يجب تسجيل الدخول أولاً" });
+  }
   const clientId = req.user._id;
+  const { mealId, quantity = 1 } = req.body;
 
-  // التحقق من وجود الوجبة
   const meal = await Meal.findById(mealId);
   if (!meal) {
-    return res.status(404).json(new ApiResponse(false, "الوجبة غير موجودة"));
+    return res
+      .status(404)
+      .json({ success: false, message: "الوجبة غير موجودة" });
   }
-
-  // التحقق من توفر الكمية
   if (meal.quantity < quantity) {
     return res
       .status(400)
-      .json(new ApiResponse(false, "الكمية المطلوبة غير متوفرة"));
+      .json({ success: false, message: "الكمية المطلوبة غير متوفرة" });
   }
 
-  // البحث عن كارت المستخدم أو إنشاء واحد جديد
   let cart = await Cart.findOne({ clientId })
-    .populate({
-      path: "meals.mealId",
-      select: "name price image quantity",
-    })
-    .populate({
-      path: "clientId",
-      select: "name",
-    });
+    .populate({ path: "meals.mealId", select: "name price image quantity" })
+    .populate({ path: "clientId", select: "name" });
 
   if (!cart) {
-    // Populate clientId with user name from req.user if available
     cart = new Cart({ clientId, meals: [] });
-    // إذا كان req.user.name موجود، حدث اسم العميل في الداتابيز
     if (req.user && req.user.name) {
       const User = require("../models/User");
       await User.updateOne(
@@ -104,44 +100,36 @@ const addToCart = asyncHandler(async (req, res) => {
     }
   }
 
-  // التحقق من وجود الوجبة في عربة الوجبات
-  const existingItemIndex = cart.meals.findIndex(
-    (item) => item.mealId._id.toString() === mealId
-  );
+  const existingItemIndex = cart.meals.findIndex((item) => {
+    const id = item.mealId._id ? item.mealId._id : item.mealId;
+    return id.toString() === String(mealId);
+  });
 
   if (existingItemIndex > -1) {
-    // تحديث الكمية إذا كانت الوجبة موجودة
     const newQuantity = cart.meals[existingItemIndex].quantity + quantity;
     if (newQuantity > meal.quantity) {
       return res
         .status(400)
-        .json(new ApiResponse(false, "الكمية المطلوبة غير متوفرة"));
+        .json({ success: false, message: "الكمية المطلوبة غير متوفرة" });
     }
     cart.meals[existingItemIndex].quantity = newQuantity;
   } else {
-    // إضافة وجبة جديدة
     cart.meals.push({ mealId, quantity });
   }
 
   cart.updatedAt = new Date();
   await cart.save();
 
-  // إعادة تحميل عربة الوجبات مع تفاصيل الوجبات واسم العميل
   await cart.populate({
     path: "meals.mealId",
     select: "name price image quantity",
   });
-  await cart.populate({
-    path: "clientId",
-    select: "name",
-  });
+  await cart.populate({ path: "clientId", select: "name" });
 
-  // حساب الإجمالي
-  const total = cart.meals.reduce((sum, item) => {
-    return sum + item.mealId.price * item.quantity;
-  }, 0);
-
-  // تجهيز ملخص السلة
+  const total = cart.meals.reduce(
+    (sum, item) => sum + item.mealId.price * item.quantity,
+    0
+  );
   const summary = buildCartSummary(cart, total, cart.getItemCount());
   res.status(200).json({
     success: true,
@@ -158,6 +146,11 @@ const addToCart = asyncHandler(async (req, res) => {
 
 // عرض عربة الوجبات
 const getCart = asyncHandler(async (req, res) => {
+  if (!req.user || !req.user._id) {
+    return res
+      .status(401)
+      .json({ success: false, message: "يجب تسجيل الدخول أولاً" });
+  }
   const clientId = req.user._id;
 
   const cart = await Cart.findOne({ clientId })
@@ -165,10 +158,7 @@ const getCart = asyncHandler(async (req, res) => {
       path: "meals.mealId",
       select: "name price image quantity description category",
     })
-    .populate({
-      path: "clientId",
-      select: "name",
-    });
+    .populate({ path: "clientId", select: "name" });
 
   if (!cart || cart.meals.length === 0) {
     return res.status(200).json({
@@ -184,14 +174,11 @@ const getCart = asyncHandler(async (req, res) => {
     });
   }
 
-  // حساب الإجمالي وعدد العناصر
-  const total = cart.meals.reduce((sum, item) => {
-    return sum + item.mealId.price * item.quantity;
-  }, 0);
-
+  const total = cart.meals.reduce(
+    (sum, item) => sum + item.mealId.price * item.quantity,
+    0
+  );
   const itemCount = cart.getItemCount();
-
-  // تجهيز ملخص السلة
   const summary = buildCartSummary(cart, total, itemCount);
   res.status(200).json({
     success: true,
@@ -208,69 +195,66 @@ const getCart = asyncHandler(async (req, res) => {
 
 // تحديث كمية وجبة في عربة الوجبات
 const updateCartItem = asyncHandler(async (req, res) => {
-  // إذا كان req.user.name موجود، حدث اسم العميل في الداتابيز
-  if (req.user && req.user.name) {
-    const User = require("../models/User");
-    await User.updateOne({ _id: clientId }, { $set: { name: req.user.name } });
+  if (!req.user || !req.user._id) {
+    return res
+      .status(401)
+      .json({ success: false, message: "يجب تسجيل الدخول أولاً" });
   }
-  const { mealId, quantity } = req.body;
+  console.log(req.user);
   const clientId = req.user._id;
 
-  if (quantity <= 0) {
+  const { mealId, quantity } = req.body;
+
+  if (typeof quantity !== "number" || quantity <= 0) {
     return res
       .status(400)
-      .json(new ApiResponse(false, "الكمية يجب أن تكون أكبر من صفر"));
+      .json({ success: false, message: "الكمية يجب أن تكون أكبر من صفر" });
   }
 
-  // التحقق من وجود الوجبة
   const meal = await Meal.findById(mealId);
   if (!meal) {
-    return res.status(404).json(new ApiResponse(false, "الوجبة غير موجودة"));
+    return res
+      .status(404)
+      .json({ success: false, message: "الوجبة غير موجودة" });
   }
-
-  // التحقق من توفر الكمية
   if (meal.quantity < quantity) {
     return res
       .status(400)
-      .json(new ApiResponse(false, "الكمية المطلوبة غير متوفرة"));
+      .json({ success: false, message: "الكمية المطلوبة غير متوفرة" });
   }
 
   const cart = await Cart.findOne({ clientId });
   if (!cart) {
     return res
       .status(404)
-      .json(new ApiResponse(false, "عربة الوجبات غير موجود"));
+      .json({ success: false, message: "عربة الوجبات غير موجود" });
   }
 
-  const itemIndex = cart.meals.findIndex(
-    (item) => item.mealId.toString() === mealId
-  );
+  const itemIndex = cart.meals.findIndex((item) => {
+    const id = item.mealId._id ? item.mealId._id : item.mealId;
+    return id.toString() === String(mealId);
+  });
 
   if (itemIndex === -1) {
     return res
       .status(404)
-      .json(new ApiResponse(false, "الوجبة غير موجودة في عربة الوجبات"));
+      .json({ success: false, message: "الوجبة غير موجودة في عربة الوجبات" });
   }
 
   cart.meals[itemIndex].quantity = quantity;
   cart.updatedAt = new Date();
   await cart.save();
 
-  // إعادة تحميل عربة الوجبات مع التفاصيل واسم العميل
   await cart.populate({
     path: "meals.mealId",
     select: "name price image quantity",
   });
-  await cart.populate({
-    path: "clientId",
-    select: "name",
-  });
+  await cart.populate({ path: "clientId", select: "name" });
 
-  const total = cart.meals.reduce((sum, item) => {
-    return sum + item.mealId.price * item.quantity;
-  }, 0);
-
-  // تجهيز ملخص السلة
+  const total = cart.meals.reduce(
+    (sum, item) => sum + item.mealId.price * item.quantity,
+    0
+  );
   const summary = buildCartSummary(cart, total, cart.getItemCount());
   res.status(200).json({
     success: true,
@@ -287,50 +271,46 @@ const updateCartItem = asyncHandler(async (req, res) => {
 
 // حذف وجبة من عربة الوجبات
 const removeFromCart = asyncHandler(async (req, res) => {
-  // إذا كان req.user.name موجود، حدث اسم العميل في الداتابيز
-  if (req.user && req.user.name) {
-    const User = require("../models/User");
-    await User.updateOne({ _id: clientId }, { $set: { name: req.user.name } });
+  if (!req.user || !req.user._id) {
+    return res
+      .status(401)
+      .json({ success: false, message: "يجب تسجيل الدخول أولاً" });
   }
-  const { mealId } = req.params;
   const clientId = req.user._id;
+  const { mealId } = req.params;
 
   const cart = await Cart.findOne({ clientId });
   if (!cart) {
     return res
       .status(404)
-      .json(new ApiResponse(false, "عربة الوجبات غير موجود"));
+      .json({ success: false, message: "عربة الوجبات غير موجود" });
   }
 
-  const itemIndex = cart.meals.findIndex(
-    (item) => item.mealId.toString() === mealId
-  );
+  const itemIndex = cart.meals.findIndex((item) => {
+    const id = item.mealId._id ? item.mealId._id : item.mealId;
+    return id.toString() === String(mealId);
+  });
 
   if (itemIndex === -1) {
     return res
       .status(404)
-      .json(new ApiResponse(false, "الوجبة غير موجودة في عربة الوجبات"));
+      .json({ success: false, message: "الوجبة غير موجودة في عربة الوجبات" });
   }
 
   cart.meals.splice(itemIndex, 1);
   cart.updatedAt = new Date();
   await cart.save();
 
-  // إعادة تحميل عربة الوجبات مع التفاصيل واسم العميل
   await cart.populate({
     path: "meals.mealId",
     select: "name price image quantity",
   });
-  await cart.populate({
-    path: "clientId",
-    select: "name",
-  });
+  await cart.populate({ path: "clientId", select: "name" });
 
-  const total = cart.meals.reduce((sum, item) => {
-    return sum + item.mealId.price * item.quantity;
-  }, 0);
-
-  // تجهيز ملخص السلة
+  const total = cart.meals.reduce(
+    (sum, item) => sum + item.mealId.price * item.quantity,
+    0
+  );
   const summary = buildCartSummary(cart, total, cart.getItemCount());
   res.status(200).json({
     success: true,
@@ -347,10 +327,10 @@ const removeFromCart = asyncHandler(async (req, res) => {
 
 // مسح عربة الوجبات بالكامل
 const clearCart = asyncHandler(async (req, res) => {
-  // إذا كان req.user.name موجود، حدث اسم العميل في الداتابيز
-  if (req.user && req.user.name) {
-    const User = require("../models/User");
-    await User.updateOne({ _id: clientId }, { $set: { name: req.user.name } });
+  if (!req.user || !req.user._id) {
+    return res
+      .status(401)
+      .json({ success: false, message: "يجب تسجيل الدخول أولاً" });
   }
   const clientId = req.user._id;
 
@@ -358,19 +338,15 @@ const clearCart = asyncHandler(async (req, res) => {
   if (!cart) {
     return res
       .status(404)
-      .json(new ApiResponse(false, "عربة الوجبات غير موجود"));
+      .json({ success: false, message: "عربة الوجبات غير موجود" });
   }
 
   cart.meals = [];
   cart.updatedAt = new Date();
   await cart.save();
 
-  // إعادة تحميل اسم العميل
-  await cart.populate({
-    path: "clientId",
-    select: "name",
-  });
-  // تجهيز ملخص السلة
+  await cart.populate({ path: "clientId", select: "name" });
+
   const summary = buildCartSummary(cart, 0, 0);
   res.status(200).json({
     success: true,
@@ -387,37 +363,46 @@ const clearCart = asyncHandler(async (req, res) => {
 
 // الحصول على إحصائيات عربة الوجبات
 const getCartStats = asyncHandler(async (req, res) => {
+  if (!req.user || !req.user._id) {
+    return res
+      .status(401)
+      .json({ success: false, message: "يجب تسجيل الدخول أولاً" });
+  }
   const clientId = req.user._id;
 
   const cart = await Cart.findOne({ clientId }).populate({
-    path: "items.mealId",
+    path: "meals.mealId",
     select: "price",
   });
 
-  if (!cart || cart.items.length === 0) {
-    return res.status(200).json(
-      new ApiResponse(true, "إحصائيات عربة الوجبات", {
+  if (!cart || cart.meals.length === 0) {
+    return res.status(200).json({
+      success: true,
+      message: "إحصائيات عربة الوجبات",
+      data: {
         total: 0,
         itemCount: 0,
         uniqueItems: 0,
-      })
-    );
+      },
+    });
   }
 
-  const total = cart.items.reduce((sum, item) => {
-    return sum + item.mealId.price * item.quantity;
-  }, 0);
-
+  const total = cart.meals.reduce(
+    (sum, item) => sum + item.mealId.price * item.quantity,
+    0
+  );
   const itemCount = cart.getItemCount();
-  const uniqueItems = cart.items.length;
+  const uniqueItems = cart.meals.length;
 
-  res.status(200).json(
-    new ApiResponse(true, "إحصائيات عربة الوجبات", {
+  res.status(200).json({
+    success: true,
+    message: "إحصائيات عربة الوجبات",
+    data: {
       total,
       itemCount,
       uniqueItems,
-    })
-  );
+    },
+  });
 });
 
 module.exports = {

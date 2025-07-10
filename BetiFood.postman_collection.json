@@ -266,7 +266,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\r\n    \"mealId\":\"6867e8f96b9c9bf9534ab1c8\",\r\n    \"quantity\":\"2\"\r\n}",
+							"raw": "{\r\n    \"mealId\":\"6867eb376b9c9bf9534ab1df\",\r\n    \"quantity\":\"2\"\r\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -301,7 +301,7 @@
 							}
 						],
 						"url": {
-							"raw": "http://localhost:3000/api/cart/remove/6867e8f96b9c9bf9534ab1c8",
+							"raw": "http://localhost:3000/api/cart/remove/6867eb376b9c9bf9534ab1df",
 							"protocol": "http",
 							"host": [
 								"localhost"
@@ -311,7 +311,7 @@
 								"api",
 								"cart",
 								"remove",
-								"6867e8f96b9c9bf9534ab1c8"
+								"6867eb376b9c9bf9534ab1df"
 							]
 						}
 					},
