@@ -10,7 +10,6 @@ async function addMeal(req, res) {
     const { name, description, price, categoryName, quantity } = req.body;
     const cookId = req.user._id;
 
-    // Validate required fields and numbers
     if (
       name === undefined ||
       name.trim() === "" ||
@@ -244,15 +243,11 @@ async function updateMeal(req, res) {
       return res.status(403).json({ message: "غير مصرح لك بتعديل هذه الوجبة" });
     }
 
-    // Handle image uploads if files are provided
     if (req.files && req.files.length > 0) {
       let images = [];
-      // Check if using Cloudinary (files have path) or memory storage (files have buffer)
       if (req.files[0].path) {
-        // Cloudinary storage - files already uploaded
         images = req.files.map((file) => file.path);
       } else {
-        // Memory storage - need to upload to Cloudinary
         try {
           const uploadPromises = req.files.map(async (file) => {
             const result = await cloudinary.uploader.upload(
@@ -276,7 +271,6 @@ async function updateMeal(req, res) {
       req.body.images = images;
     }
 
-    // If category is being updated, validate it
     if (req.body.categoryName) {
       const category = await Category.findOne({
         name: { $regex: `^${req.body.categoryName.trim()}$`, $options: "i" },
@@ -327,7 +321,6 @@ async function updateMeal(req, res) {
       req.body.rate = rateNum;
     }
 
-    // Validate popularity if provided (should be a float >= 0)
     if (req.body.popularity !== undefined) {
       const popularityNum = Number(req.body.popularity);
       if (isNaN(popularityNum) || popularityNum < 0) {
@@ -338,7 +331,6 @@ async function updateMeal(req, res) {
       req.body.popularity = popularityNum;
     }
 
-    // Update the meal
     Object.assign(meal, req.body);
     await meal.save();
 
@@ -394,25 +386,21 @@ async function getMyMeals(req, res) {
 
 async function getTopRatedMealsByCook(req, res) {
   try {
-    const { cookId } = req.params;
-    const { page = 1, limit = 10 } = req.query;
-    if (!req.user || req.user.role !== "cook" || req.user._id.toString() !== cookId) {
+    if (!req.user || req.user.role !== "cook") {
       return res.status(403).json({ message: "غير مصرح لك بالوصول إلى هذه البيانات" });
     }
+    const cookId = req.user._id;
+    const { page = 1, limit = 10 } = req.query;
     const cook = await require("../models/User").findById(cookId);
     if (!cook || cook.role !== "cook" || !cook.isVerified) {
       return res.status(404).json({ message: "الطاهي غير موجود أو غير مفعل" });
     }
-
     const skip = (page - 1) * limit;
-
     const meals = await require("../models/Meal").find({ "cook.cookId": cookId })
       .sort({ rate: -1, popularity: -1 })
       .skip(skip)
       .limit(Number(limit));
-
     const totalMeals = await require("../models/Meal").countDocuments({ "cook.cookId": cookId });
-
     res.status(200).json({
       meals,
       pagination: {
@@ -437,25 +425,21 @@ async function getTopRatedMealsByCook(req, res) {
 
 async function getMostPopularMealsByCook(req, res) {
   try {
-    const { cookId } = req.params;
-    const { page = 1, limit = 10 } = req.query;
-    if (!req.user || req.user.role !== "cook" || req.user._id.toString() !== cookId) {
+    if (!req.user || req.user.role !== "cook") {
       return res.status(403).json({ message: "غير مصرح لك بالوصول إلى هذه البيانات" });
     }
+    const cookId = req.user._id;
+    const { page = 1, limit = 10 } = req.query;
     const cook = await require("../models/User").findById(cookId);
     if (!cook || cook.role !== "cook" || !cook.isVerified) {
       return res.status(404).json({ message: "الطاهي غير موجود أو غير مفعل" });
     }
-
     const skip = (page - 1) * limit;
-
     const meals = await require("../models/Meal").find({ "cook.cookId": cookId })
       .sort({ popularity: -1, rate: -1 })
       .skip(skip)
       .limit(Number(limit));
-
     const totalMeals = await require("../models/Meal").countDocuments({ "cook.cookId": cookId });
-
     res.status(200).json({
       meals,
       pagination: {
@@ -480,15 +464,11 @@ async function getMostPopularMealsByCook(req, res) {
 
 async function getCookMealCategories(req, res) {
   try {
-    const { cookId } = req.params;
-    const mongoose = require("mongoose");
-    if (!req.user || req.user.role !== "cook" || req.user._id.toString() !== cookId) {
+    if (!req.user || req.user.role !== "cook") {
       return res.status(403).json({ message: "غير مصرح لك بالوصول إلى هذه البيانات" });
     }
-    if (!mongoose.Types.ObjectId.isValid(cookId)) {
-      return res.status(400).json({ success: false, message: "cookId غير صالح" });
-    }
-    // Check if cook exists
+    const cookId = req.user._id;
+    const mongoose = require("mongoose");
     const cook = await require("../models/User").findById(cookId);
     if (!cook || cook.role !== "cook") {
       return res.status(404).json({ success: false, message: "الطاهي غير موجود" });
@@ -504,7 +484,7 @@ async function getCookMealCategories(req, res) {
       {
         $project: {
           _id: 0,
-          categoryId: "$_id",
+          categoryId: "$__id",
           categoryName: 1
         }
       }
