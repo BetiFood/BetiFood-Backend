@@ -317,7 +317,6 @@ async function updateMeal(req, res) {
       req.body.quantity = quantityNum;
     }
 
-    // Validate rate if provided (should be a float between 0 and 5)
     if (req.body.rate !== undefined) {
       const rateNum = Number(req.body.rate);
       if (isNaN(rateNum) || rateNum < 0 || rateNum > 5) {
@@ -361,7 +360,6 @@ async function deleteMeal(req, res) {
     const meal = await Meal.findById(req.params.id);
     if (!meal) return res.status(404).json({ message: " الوجبة غير موجودة" });
 
-    // More robust cook authorization check
     const isAuthorized =
       meal.cook &&
       meal.cook.cookId &&
@@ -378,7 +376,6 @@ async function deleteMeal(req, res) {
   }
 }
 
-// Get all meals for the authenticated cook
 async function getMyMeals(req, res) {
   try {
     if (req.user.role !== "cook") {
@@ -399,7 +396,9 @@ async function getTopRatedMealsByCook(req, res) {
   try {
     const { cookId } = req.params;
     const { page = 1, limit = 10 } = req.query;
-
+    if (!req.user || req.user.role !== "cook" || req.user._id.toString() !== cookId) {
+      return res.status(403).json({ message: "غير مصرح لك بالوصول إلى هذه البيانات" });
+    }
     const cook = await require("../models/User").findById(cookId);
     if (!cook || cook.role !== "cook" || !cook.isVerified) {
       return res.status(404).json({ message: "الطاهي غير موجود أو غير مفعل" });
@@ -440,7 +439,9 @@ async function getMostPopularMealsByCook(req, res) {
   try {
     const { cookId } = req.params;
     const { page = 1, limit = 10 } = req.query;
-
+    if (!req.user || req.user.role !== "cook" || req.user._id.toString() !== cookId) {
+      return res.status(403).json({ message: "غير مصرح لك بالوصول إلى هذه البيانات" });
+    }
     const cook = await require("../models/User").findById(cookId);
     if (!cook || cook.role !== "cook" || !cook.isVerified) {
       return res.status(404).json({ message: "الطاهي غير موجود أو غير مفعل" });
@@ -481,6 +482,9 @@ async function getCookMealCategories(req, res) {
   try {
     const { cookId } = req.params;
     const mongoose = require("mongoose");
+    if (!req.user || req.user.role !== "cook" || req.user._id.toString() !== cookId) {
+      return res.status(403).json({ message: "غير مصرح لك بالوصول إلى هذه البيانات" });
+    }
     if (!mongoose.Types.ObjectId.isValid(cookId)) {
       return res.status(400).json({ success: false, message: "cookId غير صالح" });
     }
