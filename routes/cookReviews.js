@@ -22,7 +22,8 @@ const {
 router.get("/top-rated", protect, requireClientRole, getTopRatedCookReviews);
 
 // Public routes
-router.get("/cook/:cookId", getCookReviews); // Get reviews for a specific cook
+//router.get("/cook/:cookId", getCookReviews); // Get reviews for a specific cook
+router.get("/cook/:cookId", protect, getCookReviews);
 router.get("/:id", getCookReviewById); // Get a specific cook review
 
 // Client routes (require authentication)
