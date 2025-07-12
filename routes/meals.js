@@ -14,9 +14,9 @@ const {
 const { protect, requireCookRole } = require("../middleware/authMiddleware");
 const upload = require("../middleware/uploadMiddleware");
 
-router.get("/cook/:cookId/top-rated", protect, requireCookRole, require("../controllers/mealsController").getTopRatedMealsByCook);
-router.get("/cook/:cookId/most-popular", protect, requireCookRole, require("../controllers/mealsController").getMostPopularMealsByCook);
-router.get("/cook/:cookId/categories", protect, requireCookRole, require("../controllers/mealsController").getCookMealCategories);
+router.get("/cook/top-rated", protect, requireCookRole, require("../controllers/mealsController").getTopRatedMealsByCook);
+router.get("/cook/most-popular", protect, requireCookRole, require("../controllers/mealsController").getMostPopularMealsByCook);
+router.get("/cook/categories", protect, requireCookRole, require("../controllers/mealsController").getCookMealCategories);
 
 router.get("/", getMeals);
 
