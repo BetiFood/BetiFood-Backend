@@ -395,6 +395,127 @@ async function getMyMeals(req, res) {
   }
 }
 
+async function getTopRatedMealsByCook(req, res) {
+  try {
+    const { cookId } = req.params;
+    const { page = 1, limit = 10 } = req.query;
+
+    const cook = await require("../models/User").findById(cookId);
+    if (!cook || cook.role !== "cook" || !cook.isVerified) {
+      return res.status(404).json({ message: "الطاهي غير موجود أو غير مفعل" });
+    }
+
+    const skip = (page - 1) * limit;
+
+    const meals = await require("../models/Meal").find({ "cook.cookId": cookId })
+      .sort({ rate: -1, popularity: -1 })
+      .skip(skip)
+      .limit(Number(limit));
+
+    const totalMeals = await require("../models/Meal").countDocuments({ "cook.cookId": cookId });
+
+    res.status(200).json({
+      meals,
+      pagination: {
+        currentPage: Number(page),
+        totalPages: Math.ceil(totalMeals / limit),
+        totalMeals,
+        hasNext: skip + meals.length < totalMeals,
+        hasPrev: page > 1,
+      },
+      sortBy: "rating_high",
+      cook: { _id: cook._id, name: cook.name },
+    });
+  } catch (err) {
+    console.error("Error getting top-rated meals for cook:", err);
+    res.status(500).json({
+      success: false,
+      message: "فشل في جلب أفضل وجبات الطاهي",
+      error: process.env.NODE_ENV === "development" ? err.message : "Internal server error",
+    });
+  }
+}
+
+async function getMostPopularMealsByCook(req, res) {
+  try {
+    const { cookId } = req.params;
+    const { page = 1, limit = 10 } = req.query;
+
+    const cook = await require("../models/User").findById(cookId);
+    if (!cook || cook.role !== "cook" || !cook.isVerified) {
+      return res.status(404).json({ message: "الطاهي غير موجود أو غير مفعل" });
+    }
+
+    const skip = (page - 1) * limit;
+
+    const meals = await require("../models/Meal").find({ "cook.cookId": cookId })
+      .sort({ popularity: -1, rate: -1 })
+      .skip(skip)
+      .limit(Number(limit));
+
+    const totalMeals = await require("../models/Meal").countDocuments({ "cook.cookId": cookId });
+
+    res.status(200).json({
+      meals,
+      pagination: {
+        currentPage: Number(page),
+        totalPages: Math.ceil(totalMeals / limit),
+        totalMeals,
+        hasNext: skip + meals.length < totalMeals,
+        hasPrev: page > 1,
+      },
+      sortBy: "popularity_high",
+      cook: { _id: cook._id, name: cook.name },
+    });
+  } catch (err) {
+    console.error("Error getting most popular meals for cook:", err);
+    res.status(500).json({
+      success: false,
+      message: "فشل في جلب أكثر وجبات الطاهي شعبية",
+      error: process.env.NODE_ENV === "development" ? err.message : "Internal server error",
+    });
+  }
+}
+
+async function getCookMealCategories(req, res) {
+  try {
+    const { cookId } = req.params;
+    const mongoose = require("mongoose");
+    if (!mongoose.Types.ObjectId.isValid(cookId)) {
+      return res.status(400).json({ success: false, message: "cookId غير صالح" });
+    }
+    // Check if cook exists
+    const cook = await require("../models/User").findById(cookId);
+    if (!cook || cook.role !== "cook") {
+      return res.status(404).json({ success: false, message: "الطاهي غير موجود" });
+    }
+    const categories = await require("../models/Meal").aggregate([
+      { $match: { "cook.cookId": new mongoose.Types.ObjectId(cookId) } },
+      {
+        $group: {
+          _id: "$category.categoryId",
+          categoryName: { $first: "$category.categoryName" }
+        }
+      },
+      {
+        $project: {
+          _id: 0,
+          categoryId: "$_id",
+          categoryName: 1
+        }
+      }
+    ]);
+    res.status(200).json({ categories });
+  } catch (err) {
+    console.error("Error in getCookMealCategories:", err);
+    res.status(500).json({
+      success: false,
+      message: "فشل في جلب تصنيفات وجبات الطاهي",
+      error: err.message || "Internal server error"
+    });
+  }
+}
+
 module.exports = {
   addMeal,
   getMeals,
@@ -403,4 +524,7 @@ module.exports = {
   updateMeal,
   deleteMeal,
   getMyMeals,
+  getTopRatedMealsByCook,
+  getMostPopularMealsByCook,
+  getCookMealCategories,
 };
