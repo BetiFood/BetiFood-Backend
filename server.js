@@ -10,6 +10,8 @@ const wishlistRoutes = require("./routes/wishlist.js");
 const cookReviewRoutes = require("./routes/cookReviews.js");
 const mealReviewRoutes = require("./routes/mealReviews.js");
 const userRoutes = require("./routes/users.js");
+const orderRoutes = require("./routes/orderRoutes.js");
+
 const app = express();
 const port = 3000;
 
@@ -31,7 +33,8 @@ app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/meals", require("./routes/meals"));
 app.use("/api/cart", require("./routes/cart"));
-app.use("/api/orders", require("./routes/orderRoutes"));
+app.use("/api/orders", orderRoutes);
+
 app.use("/api/admin", adminRoutes);
 app.use("/api/categories", categoryRoutes);
 app.use("/api/wishlist", wishlistRoutes);

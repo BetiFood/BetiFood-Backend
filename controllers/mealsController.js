@@ -10,7 +10,6 @@ async function addMeal(req, res) {
     const { name, description, price, categoryName, quantity } = req.body;
     const cookId = req.user._id;
 
-    // Validate required fields and numbers
     if (
       name === undefined ||
       name.trim() === "" ||
@@ -244,15 +243,11 @@ async function updateMeal(req, res) {
       return res.status(403).json({ message: "غير مصرح لك بتعديل هذه الوجبة" });
     }
 
-    // Handle image uploads if files are provided
     if (req.files && req.files.length > 0) {
       let images = [];
-      // Check if using Cloudinary (files have path) or memory storage (files have buffer)
       if (req.files[0].path) {
-        // Cloudinary storage - files already uploaded
         images = req.files.map((file) => file.path);
       } else {
-        // Memory storage - need to upload to Cloudinary
         try {
           const uploadPromises = req.files.map(async (file) => {
             const result = await cloudinary.uploader.upload(
@@ -276,7 +271,6 @@ async function updateMeal(req, res) {
       req.body.images = images;
     }
 
-    // If category is being updated, validate it
     if (req.body.categoryName) {
       const category = await Category.findOne({
         name: { $regex: `^${req.body.categoryName.trim()}$`, $options: "i" },
@@ -317,7 +311,6 @@ async function updateMeal(req, res) {
       req.body.quantity = quantityNum;
     }
 
-    // Validate rate if provided (should be a float between 0 and 5)
     if (req.body.rate !== undefined) {
       const rateNum = Number(req.body.rate);
       if (isNaN(rateNum) || rateNum < 0 || rateNum > 5) {
@@ -328,7 +321,6 @@ async function updateMeal(req, res) {
       req.body.rate = rateNum;
     }
 
-    // Validate popularity if provided (should be a float >= 0)
     if (req.body.popularity !== undefined) {
       const popularityNum = Number(req.body.popularity);
       if (isNaN(popularityNum) || popularityNum < 0) {
@@ -339,7 +331,6 @@ async function updateMeal(req, res) {
       req.body.popularity = popularityNum;
     }
 
-    // Update the meal
     Object.assign(meal, req.body);
     await meal.save();
 
@@ -361,7 +352,6 @@ async function deleteMeal(req, res) {
     const meal = await Meal.findById(req.params.id);
     if (!meal) return res.status(404).json({ message: " الوجبة غير موجودة" });
 
-    // More robust cook authorization check
     const isAuthorized =
       meal.cook &&
       meal.cook.cookId &&
@@ -378,7 +368,6 @@ async function deleteMeal(req, res) {
   }
 }
 
-// Get all meals for the authenticated cook
 async function getMyMeals(req, res) {
   try {
     if (req.user.role !== "cook") {
@@ -395,6 +384,122 @@ async function getMyMeals(req, res) {
   }
 }
 
+async function getTopRatedMealsByCook(req, res) {
+  try {
+    if (!req.user || req.user.role !== "cook") {
+      return res.status(403).json({ message: "غير مصرح لك بالوصول إلى هذه البيانات" });
+    }
+    const cookId = req.user._id;
+    const { page = 1, limit = 10 } = req.query;
+    const cook = await require("../models/User").findById(cookId);
+    if (!cook || cook.role !== "cook" || !cook.isVerified) {
+      return res.status(404).json({ message: "الطاهي غير موجود أو غير مفعل" });
+    }
+    const skip = (page - 1) * limit;
+    const meals = await require("../models/Meal").find({ "cook.cookId": cookId })
+      .sort({ rate: -1, popularity: -1 })
+      .skip(skip)
+      .limit(Number(limit));
+    const totalMeals = await require("../models/Meal").countDocuments({ "cook.cookId": cookId });
+    res.status(200).json({
+      meals,
+      pagination: {
+        currentPage: Number(page),
+        totalPages: Math.ceil(totalMeals / limit),
+        totalMeals,
+        hasNext: skip + meals.length < totalMeals,
+        hasPrev: page > 1,
+      },
+      sortBy: "rating_high",
+      cook: { _id: cook._id, name: cook.name },
+    });
+  } catch (err) {
+    console.error("Error getting top-rated meals for cook:", err);
+    res.status(500).json({
+      success: false,
+      message: "فشل في جلب أفضل وجبات الطاهي",
+      error: process.env.NODE_ENV === "development" ? err.message : "Internal server error",
+    });
+  }
+}
+
+async function getMostPopularMealsByCook(req, res) {
+  try {
+    if (!req.user || req.user.role !== "cook") {
+      return res.status(403).json({ message: "غير مصرح لك بالوصول إلى هذه البيانات" });
+    }
+    const cookId = req.user._id;
+    const { page = 1, limit = 10 } = req.query;
+    const cook = await require("../models/User").findById(cookId);
+    if (!cook || cook.role !== "cook" || !cook.isVerified) {
+      return res.status(404).json({ message: "الطاهي غير موجود أو غير مفعل" });
+    }
+    const skip = (page - 1) * limit;
+    const meals = await require("../models/Meal").find({ "cook.cookId": cookId })
+      .sort({ popularity: -1, rate: -1 })
+      .skip(skip)
+      .limit(Number(limit));
+    const totalMeals = await require("../models/Meal").countDocuments({ "cook.cookId": cookId });
+    res.status(200).json({
+      meals,
+      pagination: {
+        currentPage: Number(page),
+        totalPages: Math.ceil(totalMeals / limit),
+        totalMeals,
+        hasNext: skip + meals.length < totalMeals,
+        hasPrev: page > 1,
+      },
+      sortBy: "popularity_high",
+      cook: { _id: cook._id, name: cook.name },
+    });
+  } catch (err) {
+    console.error("Error getting most popular meals for cook:", err);
+    res.status(500).json({
+      success: false,
+      message: "فشل في جلب أكثر وجبات الطاهي شعبية",
+      error: process.env.NODE_ENV === "development" ? err.message : "Internal server error",
+    });
+  }
+}
+
+async function getCookMealCategories(req, res) {
+  try {
+    if (!req.user || req.user.role !== "cook") {
+      return res.status(403).json({ message: "غير مصرح لك بالوصول إلى هذه البيانات" });
+    }
+    const cookId = req.user._id;
+    const mongoose = require("mongoose");
+    const cook = await require("../models/User").findById(cookId);
+    if (!cook || cook.role !== "cook") {
+      return res.status(404).json({ success: false, message: "الطاهي غير موجود" });
+    }
+    const categories = await require("../models/Meal").aggregate([
+      { $match: { "cook.cookId": new mongoose.Types.ObjectId(cookId) } },
+      {
+        $group: {
+          _id: "$category.categoryId",
+          categoryName: { $first: "$category.categoryName" }
+        }
+      },
+      {
+        $project: {
+          _id: 0,
+          categoryId: "$__id",
+          categoryName: 1
+        }
+      }
+    ]);
+    res.status(200).json({ categories });
+  } catch (err) {
+    console.error("Error in getCookMealCategories:", err);
+    res.status(500).json({
+      success: false,
+      message: "فشل في جلب تصنيفات وجبات الطاهي",
+      error: err.message || "Internal server error"
+    });
+  }
+}
+
 module.exports = {
   addMeal,
   getMeals,
@@ -403,4 +508,7 @@ module.exports = {
   updateMeal,
   deleteMeal,
   getMyMeals,
+  getTopRatedMealsByCook,
+  getMostPopularMealsByCook,
+  getCookMealCategories,
 };
