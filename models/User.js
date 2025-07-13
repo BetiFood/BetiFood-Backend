@@ -62,9 +62,7 @@ const userSchema = new mongoose.Schema(
     verification: {
       nationalId: {
         type: String,
-        required: function () {
-          return this.role === "cook" || this.role === "delivery";
-        },
+        required: false, // Changed from required function to false
         validate: {
           validator: function (v) {
             // Egyptian National ID validation (14 digits)
@@ -75,21 +73,15 @@ const userSchema = new mongoose.Schema(
       },
       idCardFrontImage: {
         type: String,
-        required: function () {
-          return this.role === "cook" || this.role === "delivery";
-        },
+        required: false, // Changed from required function to false
       },
       idCardBackImage: {
         type: String,
-        required: function () {
-          return this.role === "cook" || this.role === "delivery";
-        },
+        required: false, // Changed from required function to false
       },
       criminalRecord: {
         type: String,
-        required: function () {
-          return this.role === "cook" || this.role === "delivery";
-        },
+        required: false, // Changed from required function to false
       },
       status: {
         type: String,
