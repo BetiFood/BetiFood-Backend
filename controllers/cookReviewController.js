@@ -46,7 +46,9 @@ async function updateCookRating(cookId) {
 async function addCookReview(req, res) {
   try {
     if (!req.user || !req.user._id) {
-      return res.status(401).json({ success: false, message: "يجب تسجيل الدخول أولاً" });
+      return res
+        .status(401)
+        .json({ success: false, message: "يجب تسجيل الدخول أولاً" });
     }
     const { cookId, rating, comment } = req.body;
     const clientId = req.user._id;
@@ -155,9 +157,6 @@ async function addCookReview(req, res) {
 // Get all reviews for a specific cook
 async function getCookReviews(req, res) {
   try {
-    if (!req.user || !req.user._id) {
-      return res.status(401).json({ success: false, message: "يجب تسجيل الدخول أولاً" });
-    }
     const { cookId } = req.params;
     const { page = 1, limit = 10, sort = "newest" } = req.query;
 
@@ -256,7 +255,9 @@ async function getCookReviews(req, res) {
 async function getClientReviews(req, res) {
   try {
     if (!req.user || !req.user._id) {
-      return res.status(401).json({ success: false, message: "يجب تسجيل الدخول أولاً" });
+      return res
+        .status(401)
+        .json({ success: false, message: "يجب تسجيل الدخول أولاً" });
     }
     const { clientId } = req.params;
     const { page = 1, limit = 10 } = req.query;
@@ -310,9 +311,6 @@ async function getClientReviews(req, res) {
 // Get a specific review by ID
 async function getCookReviewById(req, res) {
   try {
-    if (!req.user || !req.user._id) {
-      return res.status(401).json({ success: false, message: "يجب تسجيل الدخول أولاً" });
-    }
     const review = await CookReview.findById(req.params.id);
 
     if (!review) {
@@ -341,7 +339,9 @@ async function getCookReviewById(req, res) {
 async function updateCookReview(req, res) {
   try {
     if (!req.user || !req.user._id) {
-      return res.status(401).json({ success: false, message: "يجب تسجيل الدخول أولاً" });
+      return res
+        .status(401)
+        .json({ success: false, message: "يجب تسجيل الدخول أولاً" });
     }
     const { rating, comment } = req.body;
     const reviewId = req.params.id;
@@ -420,7 +420,9 @@ async function updateCookReview(req, res) {
 async function deleteCookReview(req, res) {
   try {
     if (!req.user || !req.user._id) {
-      return res.status(401).json({ success: false, message: "يجب تسجيل الدخول أولاً" });
+      return res
+        .status(401)
+        .json({ success: false, message: "يجب تسجيل الدخول أولاً" });
     }
     const reviewId = req.params.id;
     const clientId = req.user._id;
@@ -469,7 +471,9 @@ async function deleteCookReview(req, res) {
 async function getAllCookReviews(req, res) {
   try {
     if (!req.user || !req.user._id) {
-      return res.status(401).json({ success: false, message: "يجب تسجيل الدخول أولاً" });
+      return res
+        .status(401)
+        .json({ success: false, message: "يجب تسجيل الدخول أولاً" });
     }
     const { page = 1, limit = 20, cookId, clientId, isActive } = req.query;
 
@@ -518,7 +522,9 @@ async function getAllCookReviews(req, res) {
 async function getTopRatedCookReviews(req, res) {
   try {
     if (!req.user || !req.user._id) {
-      return res.status(401).json({ success: false, message: "يجب تسجيل الدخول أولاً" });
+      return res
+        .status(401)
+        .json({ success: false, message: "يجب تسجيل الدخول أولاً" });
     }
     const limit = parseInt(req.query.limit) || 5;
     const reviews = await CookReview.find({ isActive: true })

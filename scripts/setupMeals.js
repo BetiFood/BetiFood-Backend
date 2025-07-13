@@ -16,6 +16,15 @@ async function setupMeals() {
   const meal1 = await Meal.create({
     name: "كشري",
     description: "كشري مصري أصلي",
+    ingredients: [
+      "أرز",
+      "عدس",
+      "مكرونة",
+      "بصل مقلي",
+      "صلصة طماطم",
+      "حمص",
+      "خل",
+    ],
     price: 30,
     category: {
       categoryId: new mongoose.Types.ObjectId(),
@@ -35,6 +44,7 @@ async function setupMeals() {
   const meal2 = await Meal.create({
     name: "محشي ورق عنب",
     description: "محشي ورق عنب مع سلطة زبادي",
+    ingredients: ["أرز", "ورق عنب", "زيت زيتون", "ليمون", "ملح", "فلفل أسود"],
     price: 50,
     category: {
       categoryId: new mongoose.Types.ObjectId(),

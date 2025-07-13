@@ -6,6 +6,11 @@ const userSchema = new mongoose.Schema({
   password: { type: String, required: true },
   phone: { type: String, required: true },
   address: { type: String, required: true },
+  image: {
+    type: String,
+    default: null,
+    description: "User profile image URL or path",
+  },
   role: {
     type: String,
     enum: ["client", "cook", "admin", "delivery"],
@@ -37,6 +42,61 @@ const userSchema = new mongoose.Schema({
     get: function (val) {
       // Return the value as a float
       return parseFloat(val);
+    },
+  },
+  verification: {
+    nationalId: {
+      type: String,
+      required: function () {
+        return this.role === "cook" || this.role === "delivery";
+      },
+      validate: {
+        validator: function (v) {
+          // Egyptian National ID validation (14 digits)
+          return /^\d{14}$/.test(v);
+        },
+        message: "الرقم القومي يجب أن يكون 14 رقم",
+      },
+    },
+    idCardFrontImage: {
+      type: String,
+      required: function () {
+        return this.role === "cook" || this.role === "delivery";
+      },
+    },
+    idCardBackImage: {
+      type: String,
+      required: function () {
+        return this.role === "cook" || this.role === "delivery";
+      },
+    },
+    criminalRecord: {
+      type: String,
+      required: function () {
+        return this.role === "cook" || this.role === "delivery";
+      },
+    },
+    status: {
+      type: String,
+      enum: ["pending", "approved", "rejected"],
+      default: "pending",
+    },
+    submittedAt: {
+      type: Date,
+      default: Date.now,
+    },
+    reviewedAt: {
+      type: Date,
+      default: null,
+    },
+    reviewNotes: {
+      type: String,
+      default: null,
+    },
+    reviewedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
     },
   },
   createdAt: { type: Date, default: Date.now },

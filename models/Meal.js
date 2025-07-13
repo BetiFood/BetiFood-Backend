@@ -3,6 +3,11 @@ const mongoose = require("mongoose");
 const mealSchema = new mongoose.Schema({
   name: String,
   description: String,
+  ingredients: {
+    type: [String],
+    default: [],
+    validate: [(arr) => arr.length > 0, "At least one ingredient is required"],
+  },
   price: Number,
   category: {
     categoryId: {
