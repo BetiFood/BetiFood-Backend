@@ -1,5 +1,6 @@
 const User = require("../models/User");
 const bcrypt = require("bcrypt");
+const cloudinary = require("cloudinary").v2;
 
 // Helper function to transform user data based on role
 function transformUserData(user) {
@@ -238,6 +239,80 @@ async function getUserProfile(req, res) {
   }
 }
 
+// Upload user profile image
+async function uploadUserImage(req, res) {
+  try {
+    if (!req.user || !req.user._id) {
+      return res
+        .status(401)
+        .json({ success: false, message: "يجب تسجيل الدخول أولاً" });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ message: "يجب رفع صورة واحدة" });
+    }
+
+    const userId = req.user._id;
+
+    // Find user
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: "المستخدم غير موجود" });
+    }
+
+    let imageUrl;
+
+    // Handle image upload based on storage type
+    if (req.file.path) {
+      // Cloudinary storage - file already uploaded
+      imageUrl = req.file.path;
+    } else {
+      // Memory storage - need to upload to Cloudinary
+      try {
+        const result = await cloudinary.uploader.upload(
+          `data:${req.file.mimetype};base64,${req.file.buffer.toString(
+            "base64"
+          )}`,
+          {
+            folder: "users",
+            transformation: [
+              { width: 300, height: 300, crop: "fill", gravity: "face" },
+              { quality: "auto" },
+            ],
+          }
+        );
+        imageUrl = result.secure_url;
+      } catch (uploadError) {
+        console.error("Error uploading to Cloudinary:", uploadError);
+        return res.status(500).json({
+          message: "فشل في رفع الصورة",
+          error: "Cloudinary upload failed",
+        });
+      }
+    }
+
+    // Update user with new image
+    user.image = imageUrl;
+    await user.save();
+
+    res.status(200).json({
+      message: "تم رفع الصورة بنجاح",
+      image: imageUrl,
+      user: transformUserData(user),
+    });
+  } catch (err) {
+    console.error("Error uploading user image:", err);
+    res.status(500).json({
+      success: false,
+      message: "فشل في رفع الصورة",
+      error:
+        process.env.NODE_ENV === "development"
+          ? err.message
+          : "Internal server error",
+    });
+  }
+}
+
 // Update user profile (authenticated user)
 async function updateUserProfile(req, res) {
   try {
@@ -255,6 +330,42 @@ async function updateUserProfile(req, res) {
     const user = await User.findById(userId);
     if (!user) {
       return res.status(404).json({ message: "المستخدم غير موجود" });
+    }
+
+    // Handle image upload if file is provided
+    if (req.file) {
+      let imageUrl;
+
+      // Handle image upload based on storage type
+      if (req.file.path) {
+        // Cloudinary storage - file already uploaded
+        imageUrl = req.file.path;
+      } else {
+        // Memory storage - need to upload to Cloudinary
+        try {
+          const result = await cloudinary.uploader.upload(
+            `data:${req.file.mimetype};base64,${req.file.buffer.toString(
+              "base64"
+            )}`,
+            {
+              folder: "users",
+              transformation: [
+                { width: 300, height: 300, crop: "fill", gravity: "face" },
+                { quality: "auto" },
+              ],
+            }
+          );
+          imageUrl = result.secure_url;
+        } catch (uploadError) {
+          console.error("Error uploading to Cloudinary:", uploadError);
+          return res.status(500).json({
+            message: "فشل في رفع الصورة",
+            error: "Cloudinary upload failed",
+          });
+        }
+      }
+
+      user.image = imageUrl;
     }
 
     // Update basic info if provided
@@ -409,6 +520,243 @@ async function deleteUserProfile(req, res) {
   }
 }
 
+// Submit verification documents (for cook and delivery users)
+async function submitVerification(req, res) {
+  try {
+    const userId = req.user._id;
+    const { nationalId } = req.body;
+
+    // Find user
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: "المستخدم غير موجود" });
+    }
+
+    // Check if user is cook or delivery
+    if (user.role !== "cook" && user.role !== "delivery") {
+      return res.status(400).json({
+        message: "التحقق مطلوب فقط للمطاعم وموظفي التوصيل",
+      });
+    }
+
+    // Check if verification already exists
+    if (user.verification && user.verification.status !== "rejected") {
+      return res.status(400).json({
+        message: "تم تقديم طلب التحقق بالفعل",
+      });
+    }
+
+    // Handle document uploads
+    let idCardFrontImage = null;
+    let idCardBackImage = null;
+    let criminalRecord = null;
+
+    // Process uploaded files
+    if (req.files) {
+      if (req.files.idCardFront && req.files.idCardFront[0]) {
+        idCardFrontImage =
+          req.files.idCardFront[0].path || req.files.idCardFront[0].secure_url;
+      }
+      if (req.files.idCardBack && req.files.idCardBack[0]) {
+        idCardBackImage =
+          req.files.idCardBack[0].path || req.files.idCardBack[0].secure_url;
+      }
+      if (req.files.criminalRecord && req.files.criminalRecord[0]) {
+        criminalRecord =
+          req.files.criminalRecord[0].path ||
+          req.files.criminalRecord[0].secure_url;
+      }
+    }
+
+    // Validate required documents
+    if (!idCardFrontImage || !idCardBackImage || !criminalRecord) {
+      return res.status(400).json({
+        message:
+          "يجب رفع جميع المستندات المطلوبة (صورة البطاقة الأمامية والخلفية وسجل جنائي)",
+      });
+    }
+
+    // Update user verification
+    user.verification = {
+      nationalId,
+      idCardFrontImage,
+      idCardBackImage,
+      criminalRecord,
+      status: "pending",
+      submittedAt: new Date(),
+      reviewedAt: null,
+      reviewNotes: null,
+      reviewedBy: null,
+    };
+
+    await user.save();
+
+    res.status(200).json({
+      message: "تم تقديم طلب التحقق بنجاح",
+      verification: user.verification,
+    });
+  } catch (err) {
+    console.error("Error submitting verification:", err);
+    res.status(500).json({
+      success: false,
+      message: "فشل في تقديم طلب التحقق",
+      error:
+        process.env.NODE_ENV === "development"
+          ? err.message
+          : "Internal server error",
+    });
+  }
+}
+
+// Get verification status (for authenticated user)
+async function getVerificationStatus(req, res) {
+  try {
+    const userId = req.user._id;
+
+    const user = await User.findById(userId).select("-password -__v");
+
+    if (!user) {
+      return res.status(404).json({ message: "المستخدم غير موجود" });
+    }
+
+    // Check if user is cook or delivery
+    if (user.role !== "cook" && user.role !== "delivery") {
+      return res.status(400).json({
+        message: "التحقق مطلوب فقط للمطاعم وموظفي التوصيل",
+      });
+    }
+
+    res.status(200).json({
+      verification: user.verification || null,
+      isVerified: user.isVerified,
+    });
+  } catch (err) {
+    console.error("Error getting verification status:", err);
+    res.status(500).json({
+      success: false,
+      message: "فشل في جلب حالة التحقق",
+      error:
+        process.env.NODE_ENV === "development"
+          ? err.message
+          : "Internal server error",
+    });
+  }
+}
+
+// Get all pending verifications (admin only)
+async function getPendingVerifications(req, res) {
+  try {
+    const { page = 1, limit = 10, status } = req.query;
+
+    // Build filter
+    const filter = {
+      $or: [{ role: "cook" }, { role: "delivery" }],
+      "verification.status": status || "pending",
+    };
+
+    // Pagination
+    const skip = (page - 1) * limit;
+
+    const users = await User.find(filter)
+      .select("-password -__v")
+      .sort({ "verification.submittedAt": -1 })
+      .skip(skip)
+      .limit(Number(limit));
+
+    // Get total count for pagination
+    const totalUsers = await User.countDocuments(filter);
+
+    res.status(200).json({
+      verifications: users.map((user) => ({
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        role: user.role,
+        verification: user.verification,
+      })),
+      pagination: {
+        currentPage: Number(page),
+        totalPages: Math.ceil(totalUsers / limit),
+        totalUsers,
+        hasNext: skip + users.length < totalUsers,
+        hasPrev: page > 1,
+      },
+    });
+  } catch (err) {
+    console.error("Error getting pending verifications:", err);
+    res.status(500).json({
+      success: false,
+      message: "فشل في جلب طلبات التحقق",
+      error:
+        process.env.NODE_ENV === "development"
+          ? err.message
+          : "Internal server error",
+    });
+  }
+}
+
+// Review verification (admin only)
+async function reviewVerification(req, res) {
+  try {
+    const { userId } = req.params;
+    const { status, reviewNotes } = req.body;
+    const adminId = req.user._id;
+
+    // Validate status
+    if (!["approved", "rejected"].includes(status)) {
+      return res.status(400).json({
+        message: "الحالة يجب أن تكون approved أو rejected",
+      });
+    }
+
+    // Find user
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: "المستخدم غير موجود" });
+    }
+
+    // Check if user has verification
+    if (!user.verification) {
+      return res.status(400).json({
+        message: "المستخدم لم يقدم طلب تحقق",
+      });
+    }
+
+    // Update verification
+    user.verification.status = status;
+    user.verification.reviewedAt = new Date();
+    user.verification.reviewNotes = reviewNotes;
+    user.verification.reviewedBy = adminId;
+
+    // Update isVerified based on status
+    if (status === "approved") {
+      user.isVerified = true;
+    } else {
+      user.isVerified = false;
+    }
+
+    await user.save();
+
+    res.status(200).json({
+      message: `تم ${
+        status === "approved" ? "الموافقة على" : "رفض"
+      } طلب التحقق بنجاح`,
+      verification: user.verification,
+    });
+  } catch (err) {
+    console.error("Error reviewing verification:", err);
+    res.status(500).json({
+      success: false,
+      message: "فشل في مراجعة طلب التحقق",
+      error:
+        process.env.NODE_ENV === "development"
+          ? err.message
+          : "Internal server error",
+    });
+  }
+}
+
 module.exports = {
   getAllCooks,
   getTopRatedCooks,
@@ -417,4 +765,9 @@ module.exports = {
   updateUserProfile,
   deleteUserProfile,
   getCookById,
+  uploadUserImage,
+  submitVerification,
+  getVerificationStatus,
+  getPendingVerifications,
+  reviewVerification,
 };

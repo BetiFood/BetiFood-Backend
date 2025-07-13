@@ -1,5 +1,5 @@
 // Middleware to check if user is admin
-const isAdmin = (req, res, next) => {
+const admin = (req, res, next) => {
   if (req.user && req.user.role === "admin") {
     next();
   } else {
@@ -7,4 +7,4 @@ const isAdmin = (req, res, next) => {
   }
 };
 
-module.exports = { isAdmin };
+module.exports = { admin };
