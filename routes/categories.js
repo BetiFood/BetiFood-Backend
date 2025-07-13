@@ -1,6 +1,6 @@
 const express = require("express");
 const { protect, notDelivery } = require("../middleware/authMiddleware");
-const { isAdmin } = require("../middleware/adminMiddleware");
+const { admin } = require("../middleware/adminMiddleware");
 const { requireCookRole } = require("../middleware/authMiddleware");
 const {
   getAllCategories,
@@ -19,11 +19,11 @@ router.get("/", protect, notDelivery, getAllCategories);
 router.use(protect);
 
 // Admin
-router.post("/", isAdmin, createCategory);
-router.put("/:id", isAdmin, updateCategory);
+router.post("/", admin, createCategory);
+router.put("/:id", admin, updateCategory);
 
 // Admin only - delete category
-router.delete("/:id", isAdmin, deleteCategory);
+router.delete("/:id", admin, deleteCategory);
 
 // Protected route - block delivery role for getting categories by id
 router.get("/:id", notDelivery, getCategoryById);
