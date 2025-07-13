@@ -149,3 +149,53 @@ exports.verifyEmail = async (req, res) => {
       .json({ message: "رمز التحقق غير صالح أو منتهي الصلاحية" });
   }
 };
+
+exports.resendVerificationEmail = async (req, res) => {
+  try {
+    const { email } = req.body;
+    
+    if (!email) {
+      return res.status(400).json({ message: "البريد الإلكتروني مطلوب" });
+    }
+
+    // البحث عن المستخدم
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ message: "المستخدم غير موجود" });
+    }
+
+    // التحقق من حالة التفعيل
+    if (user.isVerified) {
+      return res.status(400).json({ message: "المستخدم مفعل بالفعل" });
+    }
+
+    // إنشاء رمز تحقق جديد
+    const verificationToken = jwt.sign(
+      { userId: user._id },
+      process.env.JWT_SECRET,
+      { expiresIn: "1d" }
+    );
+
+    // إعداد رابط التحقق
+    const verificationUrl = `http://localhost:5174/confirm-email?token=${verificationToken}`;
+
+    // إرسال البريد الإلكتروني
+    await sendEmail({
+      to: email,
+      subject: "تفعيل البريد الإلكتروني - بيتي فود",
+      html: generateActivationEmail(verificationUrl),
+    });
+
+    return res.status(200).json({
+      message: "تم إرسال رسالة التأكيد بنجاح",
+      userId: user._id
+    });
+
+  } catch (error) {
+    console.error('خطأ في إعادة إرسال رسالة التأكيد:', error);
+    return res.status(500).json({
+      message: "فشل في إرسال رسالة التأكيد",
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};

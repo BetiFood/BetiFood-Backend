@@ -13,7 +13,15 @@ const cartSchema = new mongoose.Schema({
         ref: "Meal",
         required: true,
       },
+      mealName: { type: String, required: true }, // اسم الوجبة
+      cookId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+        required: true,
+      },
+      cookName: { type: String, required: true }, // اسم الطباخ
       quantity: { type: Number, required: true, min: 1 },
+      price: { type: Number, required: true }, // سعر الوحدة
     },
   ],
   updatedAt: { type: Date, default: Date.now },

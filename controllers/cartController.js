@@ -48,7 +48,11 @@ function buildCartSummary(cart, total, itemCount) {
     meals: Array.isArray(cart.meals)
       ? cart.meals.map((m) => ({
           mealId: m.mealId?._id?.toString() || m.mealId?.toString(),
+          mealName: m.mealName,
+          cookId: m.cookId?.toString(),
+          cookName: m.cookName,
           quantity: m.quantity,
+          price: m.price,
         }))
       : [],
     lastUpdated: formatArabicDate(cart.updatedAt),
@@ -65,14 +69,15 @@ const { ApiResponse } = require("../utils/response");
 
 // إضافة وجبة للكارت
 const addToCart = asyncHandler(async (req, res) => {
-  if (!req.user || !req.user._id) {
+  if (!req.user || !req.user._id || req.user.role !== "client") {
     return res
-      .status(401)
-      .json({ success: false, message: "يجب تسجيل الدخول أولاً" });
+      .status(403)
+      .json({ success: false, message: "غير مصرح لك بإضافة وجبات إلى الكارت" });
   }
   const clientId = req.user._id;
   const { mealId, quantity = 1 } = req.body;
 
+  // جلب الوجبة مع بيانات الطباخ
   const meal = await Meal.findById(mealId);
   if (!meal) {
     return res
@@ -83,6 +88,11 @@ const addToCart = asyncHandler(async (req, res) => {
     return res
       .status(400)
       .json({ success: false, message: "الكمية المطلوبة غير متوفرة" });
+  }
+  if (!meal.cook || !meal.cook.cookId) {
+    return res
+      .status(400)
+      .json({ success: false, message: "الوجبة غير مرتبطة بطباخ" });
   }
 
   let cart = await Cart.findOne({ clientId })
@@ -114,7 +124,14 @@ const addToCart = asyncHandler(async (req, res) => {
     }
     cart.meals[existingItemIndex].quantity = newQuantity;
   } else {
-    cart.meals.push({ mealId, quantity });
+    cart.meals.push({
+      mealId,
+      mealName: meal.name,
+      cookId: meal.cook.cookId,
+      cookName: meal.cook.name,
+      quantity,
+      price: meal.price
+    });
   }
 
   cart.updatedAt = new Date();
