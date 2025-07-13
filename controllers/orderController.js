@@ -290,9 +290,9 @@ const getMyDeliveryOrders = asyncHandler(async (req, res) => {
 // تحديث الطلب
 const updateOrder = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const { 
-    status, 
-    notes, 
+  const {
+    status,
+    notes,
     estimated_delivery_time,
     client_name,
     phone,
@@ -301,8 +301,6 @@ const updateOrder = asyncHandler(async (req, res) => {
     delivery_confirmed,
     client_received
   } = req.body;
-
-
 
   const order = await Order.findById(id)
     .populate([
@@ -319,15 +317,13 @@ const updateOrder = asyncHandler(async (req, res) => {
     });
   }
 
-
-
   // التحقق من الصلاحيات حسب الدور
   let canUpdate = false;
   let allowedStatuses = [];
   let updateMessage = "";
 
   switch (req.userRole) {
-    case "client":
+    case "client": {
       // العميل يمكنه فقط تحديث الطلبات التي تخصه
       const orderClientId = order.client_id._id ? order.client_id._id.toString() : order.client_id.toString();
       if (orderClientId !== req.userId.toString()) {
@@ -371,6 +367,7 @@ const updateOrder = asyncHandler(async (req, res) => {
       else if (notes && order.status === "pending") {
         canUpdate = true;
         updateMessage = "تم تحديث الملاحظات بنجاح";
+        order.notes = notes;
       }
       // إذا لم يتم تحديد أي تحديث محدد
       else if (!status && !client_name && !phone && !address && !meals && !client_received && !notes) {
@@ -386,9 +383,10 @@ const updateOrder = asyncHandler(async (req, res) => {
           message: `لا يمكن تحديث الطلب في حالة ${translateStatus(order.status)}`
         });
       }
+      // حماية: تجاهل أي حقول تخص cook أو delivery
       break;
-
-    case "cook":
+    }
+    case "cook": {
       allowedStatuses = ["completed", "cancelled"];
       // الشيف يمكنه فقط تحديث الطلبات التي تحتوي على وجبات من صنعه
       const hasCookMeals = order.meals.some(meal => meal.cookId.toString() === req.userId.toString());
@@ -415,6 +413,7 @@ const updateOrder = asyncHandler(async (req, res) => {
       else if (notes && !status) {
         canUpdate = true;
         updateMessage = "تم تحديث الملاحظات بنجاح";
+        order.notes = notes;
       }
       // إذا لم يتم تحديد أي تحديث محدد
       else if (!status && !notes) {
@@ -430,9 +429,11 @@ const updateOrder = asyncHandler(async (req, res) => {
           message: `الحالة ${translateStatus(status)} غير مسموحة للشيف. الحالات المسموحة: ${allowedStatuses.map(s => translateStatus(s)).join(', ')}`
         });
       }
+      // حماية: تجاهل أي حقول تخص بيانات العميل أو التوصيل
       break;
-
-    case "delivery":
+    }
+    case "delivery": {
+      allowedStatuses = ["delivering", "delivered"];
       // مندوب التوصيل يمكنه فقط تحديث الطلبات المخصصة له
       const orderAssignedDelivery = order.assigned_delivery?._id ? order.assigned_delivery._id.toString() : order.assigned_delivery?.toString();
       if (orderAssignedDelivery !== req.userId.toString()) {
@@ -465,6 +466,7 @@ const updateOrder = asyncHandler(async (req, res) => {
       else if (notes && !status && !delivery_confirmed) {
         canUpdate = true;
         updateMessage = "تم تحديث الملاحظات بنجاح";
+        order.notes = notes;
       }
       // إذا لم يتم تحديد أي تحديث محدد
       else if (!status && !delivery_confirmed && !notes) {
@@ -480,9 +482,10 @@ const updateOrder = asyncHandler(async (req, res) => {
           message: `الحالة ${translateStatus(status)} غير مسموحة لمندوب التوصيل. الحالات المسموحة: ${allowedStatuses.map(s => translateStatus(s)).join(', ')}`
         });
       }
+      // حماية: تجاهل أي حقول تخص بيانات العميل أو الطباخ
       break;
-
-    case "admin":
+    }
+    case "admin": {
       // المدير يمكنه تحديث أي شيء
       canUpdate = true;
       if (status) {
@@ -491,8 +494,23 @@ const updateOrder = asyncHandler(async (req, res) => {
       } else {
         updateMessage = "تم تحديث الطلب بنجاح";
       }
+      // الأدمن يقدر يعدل أي حاجة
+      if (notes) order.notes = notes;
+      if (estimated_delivery_time) order.estimated_delivery_time = estimated_delivery_time;
+      if (client_name) order.client_name = client_name;
+      if (phone) order.phone = phone;
+      if (address) order.address = address;
+      if (meals) order.meals = meals;
+      if (order.meals) {
+        order.total_price = order.meals.reduce((sum, meal) => sum + (meal.price * meal.quantity), 0);
+        order.final_amount = order.total_price + order.delivery_fee + order.tax_amount - order.discount_amount;
+        order.payment.amount_due = order.final_amount;
+      }
+      if (order.assigned_cook) updateData.assigned_cook = order.assigned_cook;
+      if (order.assigned_delivery) updateData.assigned_delivery = order.assigned_delivery;
+      if (order.delivery_status) updateData.delivery_status = order.delivery_status;
       break;
-
+    }
     default:
       return res.status(403).json({
         success: false,
@@ -510,20 +528,47 @@ const updateOrder = asyncHandler(async (req, res) => {
   // حفظ التحديثات باستخدام findByIdAndUpdate
   const updateData = {};
 
-  // استخدم القيم القادمة من body مباشرة
-  if (status) updateData.status = status;
-  if (notes) updateData.notes = notes;
-  if (estimated_delivery_time) updateData.estimated_delivery_time = estimated_delivery_time;
-  if (order.assigned_cook) updateData.assigned_cook = order.assigned_cook;
-  if (order.assigned_delivery) updateData.assigned_delivery = order.assigned_delivery;
-  if (order.delivery_status) updateData.delivery_status = order.delivery_status;
-  if (client_name) updateData.client_name = client_name;
-  if (phone) updateData.phone = phone;
-  if (address) updateData.address = address;
-  if (order.meals) updateData.meals = order.meals;
-  if (order.total_price) updateData.total_price = order.total_price;
-  if (order.final_amount) updateData.final_amount = order.final_amount;
-  if (order.payment) updateData.payment = order.payment;
+  // فقط الحقول المسموحة حسب الدور
+  switch (req.userRole) {
+    case "client":
+      if (order.status) updateData.status = order.status;
+      if (order.notes) updateData.notes = order.notes;
+      if (order.client_name) updateData.client_name = order.client_name;
+      if (order.phone) updateData.phone = order.phone;
+      if (order.address) updateData.address = order.address;
+      if (order.meals) updateData.meals = order.meals;
+      if (order.total_price) updateData.total_price = order.total_price;
+      if (order.final_amount) updateData.final_amount = order.final_amount;
+      if (order.payment) updateData.payment = order.payment;
+      if (order.delivery_status) updateData.delivery_status = order.delivery_status;
+      break;
+    case "cook":
+      if (order.status) updateData.status = order.status;
+      if (order.notes) updateData.notes = order.notes;
+      if (order.assigned_cook) updateData.assigned_cook = order.assigned_cook;
+      break;
+    case "delivery":
+      if (order.status) updateData.status = order.status;
+      if (order.notes) updateData.notes = order.notes;
+      if (order.assigned_delivery) updateData.assigned_delivery = order.assigned_delivery;
+      if (order.delivery_status) updateData.delivery_status = order.delivery_status;
+      break;
+    case "admin":
+      if (order.status) updateData.status = order.status;
+      if (order.notes) updateData.notes = order.notes;
+      if (order.estimated_delivery_time) updateData.estimated_delivery_time = order.estimated_delivery_time;
+      if (order.client_name) updateData.client_name = order.client_name;
+      if (order.phone) updateData.phone = order.phone;
+      if (order.address) updateData.address = order.address;
+      if (order.meals) updateData.meals = order.meals;
+      if (order.total_price) updateData.total_price = order.total_price;
+      if (order.final_amount) updateData.final_amount = order.final_amount;
+      if (order.payment) updateData.payment = order.payment;
+      if (order.assigned_cook) updateData.assigned_cook = order.assigned_cook;
+      if (order.assigned_delivery) updateData.assigned_delivery = order.assigned_delivery;
+      if (order.delivery_status) updateData.delivery_status = order.delivery_status;
+      break;
+  }
 
   await Order.findByIdAndUpdate(id, updateData, { new: true });
 
