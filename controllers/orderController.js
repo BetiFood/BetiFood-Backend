@@ -389,6 +389,7 @@ const updateOrder = asyncHandler(async (req, res) => {
       break;
 
     case "cook":
+      allowedStatuses = ["completed", "cancelled"];
       // الشيف يمكنه فقط تحديث الطلبات التي تحتوي على وجبات من صنعه
       const hasCookMeals = order.meals.some(meal => meal.cookId.toString() === req.userId.toString());
       if (!hasCookMeals) {
