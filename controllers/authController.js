@@ -3,7 +3,11 @@ const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const asyncHandler = require("../utils/asyncHandler.js");
 const { sendEmail } = require("../utils/sendMail.js");
-const { generateActivationEmail } = require("../utils/generateHTML.js");
+const {
+  generateActivationEmail,
+  generateResetPasswordEmail,
+} = require("../utils/generateHTML.js");
+const crypto = require("crypto");
 
 // Recommended password regex: Minimum 8 characters, at least one uppercase, one lowercase, one number, and one special character
 const passwordRegex =
@@ -150,52 +154,93 @@ exports.verifyEmail = async (req, res) => {
   }
 };
 
-exports.resendVerificationEmail = async (req, res) => {
+// Forgot Password: Send reset link
+exports.forgotPassword = async (req, res) => {
+  const { email } = req.body;
+  if (!email) {
+    return res.status(400).json({ message: "يرجى إدخال البريد الإلكتروني" });
+  }
   try {
-    const { email } = req.body;
-    
-    if (!email) {
-      return res.status(400).json({ message: "البريد الإلكتروني مطلوب" });
-    }
-
-    // البحث عن المستخدم
     const user = await User.findOne({ email });
-    if (!user) {
-      return res.status(404).json({ message: "المستخدم غير موجود" });
+    if (user) {
+      // Generate secure token
+      const token = crypto.randomBytes(32).toString("hex");
+      const expires = Date.now() + 60 * 60 * 1000; // 1 hour
+      user.resetPasswordToken = token;
+      user.resetPasswordExpires = new Date(expires);
+      await user.save();
+      // Prepare reset link
+      const resetUrl = `http://localhost:5174/reset-password?token=${token}`;
+      // Send email (use your sendEmail utility)
+      try {
+        await sendEmail({
+          to: user.email,
+          subject: "إعادة تعيين كلمة المرور",
+          html: generateResetPasswordEmail(resetUrl),
+        });
+      } catch (emailErr) {
+        return res
+          .status(500)
+          .json({
+            message: "فشل إرسال البريد الإلكتروني",
+            error: emailErr.message,
+          });
+      }
     }
-
-    // التحقق من حالة التفعيل
-    if (user.isVerified) {
-      return res.status(400).json({ message: "المستخدم مفعل بالفعل" });
-    }
-
-    // إنشاء رمز تحقق جديد
-    const verificationToken = jwt.sign(
-      { userId: user._id },
-      process.env.JWT_SECRET,
-      { expiresIn: "1d" }
-    );
-
-    // إعداد رابط التحقق
-    const verificationUrl = `http://localhost:5174/confirm-email?token=${verificationToken}`;
-
-    // إرسال البريد الإلكتروني
-    await sendEmail({
-      to: email,
-      subject: "تفعيل البريد الإلكتروني - بيتي فود",
-      html: generateActivationEmail(verificationUrl),
-    });
-
+    // Always respond with generic message
     return res.status(200).json({
-      message: "تم إرسال رسالة التأكيد بنجاح",
-      userId: user._id
+      message:
+        "إذا كان البريد الإلكتروني مسجلاً لدينا، ستصلك رسالة لإعادة تعيين كلمة المرور.",
     });
-
-  } catch (error) {
-    console.error('خطأ في إعادة إرسال رسالة التأكيد:', error);
+  } catch (err) {
     return res.status(500).json({
-      message: "فشل في إرسال رسالة التأكيد",
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      message: "حدث خطأ أثناء إرسال رابط إعادة التعيين",
+      error: err.message,
+    });
+  }
+};
+
+// Reset Password: Set new password
+exports.resetPassword = async (req, res) => {
+  const { token, password, confirmPassword } = req.body;
+  if (!token || !password || !confirmPassword) {
+    return res.status(400).json({ message: "جميع الحقول مطلوبة" });
+  }
+  if (password !== confirmPassword) {
+    return res.status(400).json({ message: "كلمتا المرور غير متطابقتين" });
+  }
+  // Password strength validation (same as registration)
+  const passwordRegex =
+    /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]).{8,}$/;
+  if (!passwordRegex.test(password)) {
+    return res.status(400).json({
+      message:
+        "كلمة المرور يجب أن تكون 8 أحرف على الأقل وتحتوي على حرف كبير وحرف صغير ورقم وحرف خاص",
+    });
+  }
+  try {
+    const user = await User.findOne({
+      resetPasswordToken: token,
+      resetPasswordExpires: { $gt: new Date() },
+    });
+    if (!user) {
+      return res
+        .status(400)
+        .json({ message: "رمز إعادة التعيين غير صالح أو منتهي الصلاحية" });
+    }
+    // Hash new password
+    user.password = await bcrypt.hash(password, 10);
+    user.resetPasswordToken = null;
+    user.resetPasswordExpires = null;
+    await user.save();
+    return res.status(200).json({
+      message:
+        "تم إعادة تعيين كلمة المرور بنجاح. يمكنك الآن تسجيل الدخول بكلمة المرور الجديدة.",
+    });
+  } catch (err) {
+    return res.status(500).json({
+      message: "حدث خطأ أثناء إعادة تعيين كلمة المرور",
+      error: err.message,
     });
   }
 };

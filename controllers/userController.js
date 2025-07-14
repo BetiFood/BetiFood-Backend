@@ -1,6 +1,7 @@
 const User = require("../models/User");
 const bcrypt = require("bcrypt");
 const cloudinary = require("cloudinary").v2;
+const Verification = require("../models/Verification");
 
 // Helper function to transform user data based on role
 function transformUserData(user) {
@@ -26,6 +27,7 @@ async function getAllCooks(req, res) {
     const filter = {
       role: "cook",
       isVerified: true,
+      isIdentityVerified: true,
     };
 
     // Build sort options
@@ -119,6 +121,7 @@ async function getTopRatedCooks(req, res) {
     const filter = {
       role: "cook",
       isVerified: true,
+      isIdentityVerified: true,
       rate: { $gte: 1.0 }, // Only cooks with at least one review
     };
 
@@ -539,8 +542,9 @@ async function submitVerification(req, res) {
       });
     }
 
-    // Check if verification already exists
-    if (user.verification && user.verification.status !== "rejected") {
+    // Check if verification already exists (and not rejected)
+    const existingVerification = await Verification.findOne({ userId });
+    if (existingVerification && existingVerification.status !== "rejected") {
       return res.status(400).json({
         message: "تم تقديم طلب التحقق بالفعل",
       });
@@ -576,8 +580,14 @@ async function submitVerification(req, res) {
       });
     }
 
-    // Update user verification
-    user.verification = {
+    // Remove any previous verification for this user (if rejected)
+    if (existingVerification && existingVerification.status === "rejected") {
+      await Verification.deleteOne({ _id: existingVerification._id });
+    }
+
+    // Create new verification document
+    const verification = await Verification.create({
+      userId,
       nationalId,
       idCardFrontImage,
       idCardBackImage,
@@ -587,13 +597,15 @@ async function submitVerification(req, res) {
       reviewedAt: null,
       reviewNotes: null,
       reviewedBy: null,
-    };
+    });
 
+    // Always set user.isIdentityVerified = false when submitting new verification
+    user.isIdentityVerified = false;
     await user.save();
 
     res.status(200).json({
       message: "تم تقديم طلب التحقق بنجاح",
-      verification: user.verification,
+      verification,
     });
   } catch (err) {
     console.error("Error submitting verification:", err);
@@ -612,23 +624,19 @@ async function submitVerification(req, res) {
 async function getVerificationStatus(req, res) {
   try {
     const userId = req.user._id;
-
     const user = await User.findById(userId).select("-password -__v");
-
     if (!user) {
       return res.status(404).json({ message: "المستخدم غير موجود" });
     }
-
-    // Check if user is cook or delivery
     if (user.role !== "cook" && user.role !== "delivery") {
       return res.status(400).json({
         message: "التحقق مطلوب فقط للمطاعم وموظفي التوصيل",
       });
     }
-
+    const verification = await Verification.findOne({ userId });
     res.status(200).json({
-      verification: user.verification || null,
-      isVerified: user.isVerified,
+      verification: verification || null,
+      isIdentityVerified: user.isIdentityVerified,
     });
   } catch (err) {
     console.error("Error getting verification status:", err);
@@ -647,39 +655,44 @@ async function getVerificationStatus(req, res) {
 async function getPendingVerifications(req, res) {
   try {
     const { page = 1, limit = 10, status } = req.query;
-
     // Build filter
     const filter = {
-      $or: [{ role: "cook" }, { role: "delivery" }],
-      "verification.status": status || "pending",
+      status: status || "pending",
     };
-
     // Pagination
     const skip = (page - 1) * limit;
-
-    const users = await User.find(filter)
-      .select("-password -__v")
-      .sort({ "verification.submittedAt": -1 })
+    const verifications = await Verification.find(filter)
+      .populate("userId", "name email phone role")
+      .sort({ submittedAt: -1 })
       .skip(skip)
       .limit(Number(limit));
-
     // Get total count for pagination
-    const totalUsers = await User.countDocuments(filter);
-
+    const totalVerifications = await Verification.countDocuments(filter);
     res.status(200).json({
-      verifications: users.map((user) => ({
-        _id: user._id,
-        name: user.name,
-        email: user.email,
-        phone: user.phone,
-        role: user.role,
-        verification: user.verification,
+      verifications: verifications.map((v) => ({
+        _id: v._id,
+        userId: v.userId._id,
+        name: v.userId.name,
+        email: v.userId.email,
+        phone: v.userId.phone,
+        role: v.userId.role,
+        verification: {
+          nationalId: v.nationalId,
+          idCardFrontImage: v.idCardFrontImage,
+          idCardBackImage: v.idCardBackImage,
+          criminalRecord: v.criminalRecord,
+          status: v.status,
+          submittedAt: v.submittedAt,
+          reviewedAt: v.reviewedAt,
+          reviewNotes: v.reviewNotes,
+          reviewedBy: v.reviewedBy,
+        },
       })),
       pagination: {
         currentPage: Number(page),
-        totalPages: Math.ceil(totalUsers / limit),
-        totalUsers,
-        hasNext: skip + users.length < totalUsers,
+        totalPages: Math.ceil(totalVerifications / limit),
+        totalVerifications,
+        hasNext: skip + verifications.length < totalVerifications,
         hasPrev: page > 1,
       },
     });
@@ -702,47 +715,34 @@ async function reviewVerification(req, res) {
     const { userId } = req.params;
     const { status, reviewNotes } = req.body;
     const adminId = req.user._id;
-
     // Validate status
     if (!["approved", "rejected"].includes(status)) {
       return res.status(400).json({
         message: "الحالة يجب أن تكون approved أو rejected",
       });
     }
-
-    // Find user
-    const user = await User.findById(userId);
-    if (!user) {
-      return res.status(404).json({ message: "المستخدم غير موجود" });
+    // Find verification
+    const verification = await Verification.findOne({ userId });
+    if (!verification) {
+      return res.status(404).json({ message: "طلب التحقق غير موجود" });
     }
-
-    // Check if user has verification
-    if (!user.verification) {
-      return res.status(400).json({
-        message: "المستخدم لم يقدم طلب تحقق",
-      });
-    }
-
     // Update verification
-    user.verification.status = status;
-    user.verification.reviewedAt = new Date();
-    user.verification.reviewNotes = reviewNotes;
-    user.verification.reviewedBy = adminId;
-
-    // Update isVerified based on status
-    if (status === "approved") {
-      user.isVerified = true;
-    } else {
-      user.isVerified = false;
+    verification.status = status;
+    verification.reviewedAt = new Date();
+    verification.reviewNotes = reviewNotes;
+    verification.reviewedBy = adminId;
+    await verification.save();
+    // Update isIdentityVerified in user
+    const user = await User.findById(userId);
+    if (user) {
+      user.isIdentityVerified = status === "approved";
+      await user.save();
     }
-
-    await user.save();
-
     res.status(200).json({
       message: `تم ${
         status === "approved" ? "الموافقة على" : "رفض"
       } طلب التحقق بنجاح`,
-      verification: user.verification,
+      verification,
     });
   } catch (err) {
     console.error("Error reviewing verification:", err);

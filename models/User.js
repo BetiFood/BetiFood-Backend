@@ -19,7 +19,8 @@ const userSchema = new mongoose.Schema(
       default: "client",
     },
     isActive: { type: Boolean, default: true },
-    isVerified: { type: Boolean, default: false },
+    isVerified: { type: Boolean, default: false }, // for email verification
+    isIdentityVerified: { type: Boolean, default: false }, // for document verification
     profileImage: { type: String },
     // cook
     specialization: { type: String }, // specialization
@@ -59,6 +60,8 @@ const userSchema = new mongoose.Schema(
         return parseFloat(val);
       },
     },
+    resetPasswordToken: { type: String, default: null },
+    resetPasswordExpires: { type: Date, default: null },
     verification: {
       nationalId: {
         type: String,
