@@ -4,12 +4,18 @@ const {
   register,
   login,
   verifyEmail,
-  resendVerificationEmail,
 } = require("../controllers/authController");
 
 router.post("/register", register);
 router.post("/login", login);
 router.get("/verify", verifyEmail);
-router.post("/resend-verification", resendVerificationEmail);
+router.post(
+  "/forget-password",
+  require("../controllers/authController").forgotPassword
+);
+router.post(
+  "/reset-password",
+  require("../controllers/authController").resetPassword
+);
 
 module.exports = router;
