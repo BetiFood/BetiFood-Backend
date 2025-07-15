@@ -34,6 +34,7 @@ app.use("/api/users", userRoutes);
 app.use("/api/meals", require("./routes/meals"));
 app.use("/api/cart", require("./routes/cart"));
 app.use("/api/orders", orderRoutes);
+app.use("/api/delivery", require("./routes/delivery"));
 
 app.use("/api/admin", adminRoutes);
 app.use("/api/categories", categoryRoutes);

@@ -58,10 +58,18 @@ function notDelivery(req, res, next) {
   next();
 }
 
+function requireDeliveryRole(req, res, next) {
+  if (req.user && req.user.role === "delivery") {
+    return next();
+  }
+  return res.status(403).json({ message: "يجب أن تكون مندوب توصيل للوصول إلى هذا المورد" });
+}
+
 module.exports = {
   protect,
   requireCookRole,
   requireClientRole,
   requireAdminRole,
   notDelivery,
+  requireDeliveryRole,
 };
