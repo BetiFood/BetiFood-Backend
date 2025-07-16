@@ -2,6 +2,7 @@ const User = require("../models/User");
 const bcrypt = require("bcrypt");
 const cloudinary = require("cloudinary").v2;
 const Verification = require("../models/Verification");
+const connectDB = require("../config/connection");
 
 // Helper function to transform user data based on role
 function transformUserData(user) {
@@ -20,6 +21,7 @@ function transformUsersData(users) {
 
 // Get all cooks (public endpoint)
 async function getAllCooks(req, res) {
+  await connectDB();
   try {
     const { page = 1, limit = 10, sort = "newest" } = req.query;
 
@@ -114,6 +116,7 @@ async function getAllCooks(req, res) {
 
 // Get top rated cooks (public endpoint)
 async function getTopRatedCooks(req, res) {
+  await connectDB();
   try {
     const { page = 1, limit = 10 } = req.query;
 
@@ -166,6 +169,7 @@ async function getTopRatedCooks(req, res) {
 
 // Get most popular cooks (public endpoint)
 async function getMostPopularCooks(req, res) {
+  await connectDB();
   try {
     const { page = 1, limit = 10 } = req.query;
 
@@ -217,6 +221,7 @@ async function getMostPopularCooks(req, res) {
 
 // Get user profile (authenticated user)
 async function getUserProfile(req, res) {
+  await connectDB();
   try {
     const userId = req.user._id;
 
@@ -244,6 +249,7 @@ async function getUserProfile(req, res) {
 
 // Upload user profile image
 async function uploadUserImage(req, res) {
+  await connectDB();
   try {
     if (!req.user || !req.user._id) {
       return res
@@ -318,6 +324,7 @@ async function uploadUserImage(req, res) {
 
 // Update user profile (authenticated user)
 async function updateUserProfile(req, res) {
+  await connectDB();
   try {
     const userId = req.user._id;
     const {
@@ -432,6 +439,7 @@ async function updateUserProfile(req, res) {
 
 // Get cook by ID (public endpoint)
 async function getCookById(req, res) {
+  await connectDB();
   try {
     const { cookId } = req.params;
 
@@ -463,6 +471,7 @@ async function getCookById(req, res) {
 
 // Delete user profile (authenticated user)
 async function deleteUserProfile(req, res) {
+  await connectDB();
   try {
     const userId = req.user._id;
     const { password, confirmPassword } = req.body;
@@ -525,6 +534,7 @@ async function deleteUserProfile(req, res) {
 
 // Submit verification documents (for cook and delivery users)
 async function submitVerification(req, res) {
+  await connectDB();
   try {
     const userId = req.user._id;
     const { nationalId } = req.body;
@@ -622,6 +632,7 @@ async function submitVerification(req, res) {
 
 // Get verification status (for authenticated user)
 async function getVerificationStatus(req, res) {
+  await connectDB();
   try {
     const userId = req.user._id;
     const user = await User.findById(userId).select("-password -__v");
@@ -653,6 +664,7 @@ async function getVerificationStatus(req, res) {
 
 // Get all pending verifications (admin only)
 async function getPendingVerifications(req, res) {
+  await connectDB();
   try {
     const { page = 1, limit = 10, status } = req.query;
     // Build filter
@@ -711,6 +723,7 @@ async function getPendingVerifications(req, res) {
 
 // Review verification (admin only)
 async function reviewVerification(req, res) {
+  await connectDB();
   try {
     const { userId } = req.params;
     const { status, reviewNotes } = req.body;

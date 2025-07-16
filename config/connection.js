@@ -1,18 +1,33 @@
-// Connect to MongoDB
+// Connect to MongoDB with connection caching for serverless (Vercel)
 const mongoose = require("mongoose");
 
+let cached = global.mongoose;
+
+if (!cached) {
+  cached = global.mongoose = { conn: null, promise: null };
+}
+
 const connectDB = async () => {
+  if (cached.conn) {
+    return cached.conn;
+  }
+  if (!cached.promise) {
+    cached.promise = mongoose
+      .connect(process.env.MONGODB_URI, {
+        useNewUrlParser: true,
+        useUnifiedTopology: true,
+        dbName: process.env.DB_NAME,
+      })
+      .then((mongoose) => mongoose);
+  }
   try {
-    await mongoose.connect(process.env.MONGODB_URI, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-      dbName: process.env.DB_NAME,
-    });
-    console.log("MongoDB connected successfully");
+    cached.conn = await cached.promise;
+    console.log("MongoDB connected successfully (cached)");
+    return cached.conn;
   } catch (error) {
     console.error("MongoDB connection failed:", error);
-    process.exit(1); // Exit the process with failure
+    throw error;
   }
-}
+};
 
 module.exports = connectDB;

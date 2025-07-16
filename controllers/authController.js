@@ -8,12 +8,14 @@ const {
   generateResetPasswordEmail,
 } = require("../utils/generateHTML.js");
 const crypto = require("crypto");
+const connectDB = require("../config/connection");
 
 // Recommended password regex: Minimum 8 characters, at least one uppercase, one lowercase, one number, and one special character
 const passwordRegex =
   /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]).{8,}$/;
 
 exports.register = async (req, res) => {
+  await connectDB();
   try {
     const { name, email, password, confirmPassword, phone, address, role } =
       req.body;
@@ -88,6 +90,7 @@ exports.register = async (req, res) => {
 };
 
 exports.login = async (req, res) => {
+  await connectDB();
   try {
     const { email, password } = req.body;
     const user = await User.findOne({ email });
@@ -130,6 +133,7 @@ exports.login = async (req, res) => {
 };
 
 exports.verifyEmail = async (req, res) => {
+  await connectDB();
   const token = req.query.token;
   if (!token) {
     return res.status(400).json({ message: "رمز التحقق مفقود" });
@@ -156,6 +160,7 @@ exports.verifyEmail = async (req, res) => {
 
 // Forgot Password: Send reset link
 exports.forgotPassword = async (req, res) => {
+  await connectDB();
   const { email } = req.body;
   const user = await User.findOne({ email });
   if (!user) {
@@ -185,6 +190,7 @@ exports.forgotPassword = async (req, res) => {
 
 // Reset password using token
 exports.resetPassword = async (req, res) => {
+  await connectDB();
   const { token, newPassword, confirmNewPassword } = req.body;
   if (!token)
     return res.status(400).json({ message: "رمز إعادة التعيين مفقود" });
