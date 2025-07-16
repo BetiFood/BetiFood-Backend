@@ -1,6 +1,7 @@
 const Meal = require("../models/Meal");
 const Category = require("../models/Category");
 const cloudinary = require("cloudinary").v2;
+const User = require("../models/User");
 
 async function addMeal(req, res) {
   try {
@@ -8,8 +9,24 @@ async function addMeal(req, res) {
     console.log("FILES:", req.files);
 
     const { name, description, price, categoryName, quantity } = req.body;
+    let { ingredients } = req.body;
     const cookId = req.user._id;
 
+    // Handle ingredients: accept array or comma-separated string
+    if (Array.isArray(ingredients)) {
+      // Already an array (from frontend)
+      ingredients = ingredients.map((i) => i.trim()).filter((i) => i);
+    } else if (typeof ingredients === "string") {
+      // Comma-separated string (from Postman)
+      ingredients = ingredients
+        .split(",")
+        .map((i) => i.trim())
+        .filter((i) => i);
+    } else {
+      ingredients = [];
+    }
+
+    // Validate required fields
     if (
       name === undefined ||
       name.trim() === "" ||
@@ -20,11 +37,16 @@ async function addMeal(req, res) {
       categoryName === undefined ||
       categoryName.trim() === "" ||
       quantity === undefined ||
-      quantity === ""
+      quantity === "" ||
+      !ingredients ||
+      !Array.isArray(ingredients) ||
+      ingredients.length === 0
     ) {
       return res
         .status(400)
-        .json({ message: "يجب إدخال جميع الحقول المطلوبة" });
+        .json({
+          message: "يجب إدخال جميع الحقول المطلوبة بما في ذلك المكونات",
+        });
     }
 
     const priceNum = Number(price);
@@ -89,6 +111,7 @@ async function addMeal(req, res) {
     const meal = await Meal.create({
       name,
       description,
+      ingredients, // <-- Save ingredients
       price: priceNum,
       category: {
         categoryId: category._id,
@@ -161,12 +184,25 @@ async function getMeals(req, res) {
     // Pagination
     const skip = (page - 1) * limit;
 
+    // Only show meals for cooks who are verified and isIdentityVerified (public/client)
     const meals = await Meal.find(filter)
       .sort(sortOption)
       .skip(skip)
       .limit(Number(limit));
 
-    res.status(200).json(meals);
+    // Filter meals by cook's verification status
+    const cookIds = meals.map((meal) => meal.cook.cookId);
+    const cooks = await User.find({
+      _id: { $in: cookIds },
+      isVerified: true,
+      isIdentityVerified: true,
+    }).select("_id");
+    const allowedCookIds = new Set(cooks.map((c) => c._id.toString()));
+    const filteredMeals = meals.filter((meal) =>
+      allowedCookIds.has(meal.cook.cookId.toString())
+    );
+
+    res.status(200).json(filteredMeals);
   } catch (err) {
     console.error("Error getting meals:", err);
     res.status(500).json({
@@ -212,11 +248,23 @@ async function getMealsByCategory(req, res) {
 
     const meals = await Meal.find({ "category.categoryId": categoryId });
 
-    if (meals.length === 0) {
+    // Filter meals by cook's verification status
+    const cookIds = meals.map((meal) => meal.cook.cookId);
+    const cooks = await User.find({
+      _id: { $in: cookIds },
+      isVerified: true,
+      isIdentityVerified: true,
+    }).select("_id");
+    const allowedCookIds = new Set(cooks.map((c) => c._id.toString()));
+    const filteredMeals = meals.filter((meal) =>
+      allowedCookIds.has(meal.cook.cookId.toString())
+    );
+
+    if (filteredMeals.length === 0) {
       return res.status(404).json({ message: "لا توجد وجبات في هذا التصنيف" });
     }
 
-    res.status(200).json(meals);
+    res.status(200).json(filteredMeals);
   } catch (err) {
     res.status(500).json({
       message: "فشل في جلب الوجبات حسب التصنيف",
@@ -387,7 +435,9 @@ async function getMyMeals(req, res) {
 async function getTopRatedMealsByCook(req, res) {
   try {
     if (!req.user || req.user.role !== "cook") {
-      return res.status(403).json({ message: "غير مصرح لك بالوصول إلى هذه البيانات" });
+      return res
+        .status(403)
+        .json({ message: "غير مصرح لك بالوصول إلى هذه البيانات" });
     }
     const cookId = req.user._id;
     const { page = 1, limit = 10 } = req.query;
@@ -396,11 +446,14 @@ async function getTopRatedMealsByCook(req, res) {
       return res.status(404).json({ message: "الطاهي غير موجود أو غير مفعل" });
     }
     const skip = (page - 1) * limit;
-    const meals = await require("../models/Meal").find({ "cook.cookId": cookId })
+    const meals = await require("../models/Meal")
+      .find({ "cook.cookId": cookId })
       .sort({ rate: -1, popularity: -1 })
       .skip(skip)
       .limit(Number(limit));
-    const totalMeals = await require("../models/Meal").countDocuments({ "cook.cookId": cookId });
+    const totalMeals = await require("../models/Meal").countDocuments({
+      "cook.cookId": cookId,
+    });
     res.status(200).json({
       meals,
       pagination: {
@@ -418,7 +471,10 @@ async function getTopRatedMealsByCook(req, res) {
     res.status(500).json({
       success: false,
       message: "فشل في جلب أفضل وجبات الطاهي",
-      error: process.env.NODE_ENV === "development" ? err.message : "Internal server error",
+      error:
+        process.env.NODE_ENV === "development"
+          ? err.message
+          : "Internal server error",
     });
   }
 }
@@ -426,7 +482,9 @@ async function getTopRatedMealsByCook(req, res) {
 async function getMostPopularMealsByCook(req, res) {
   try {
     if (!req.user || req.user.role !== "cook") {
-      return res.status(403).json({ message: "غير مصرح لك بالوصول إلى هذه البيانات" });
+      return res
+        .status(403)
+        .json({ message: "غير مصرح لك بالوصول إلى هذه البيانات" });
     }
     const cookId = req.user._id;
     const { page = 1, limit = 10 } = req.query;
@@ -435,11 +493,14 @@ async function getMostPopularMealsByCook(req, res) {
       return res.status(404).json({ message: "الطاهي غير موجود أو غير مفعل" });
     }
     const skip = (page - 1) * limit;
-    const meals = await require("../models/Meal").find({ "cook.cookId": cookId })
+    const meals = await require("../models/Meal")
+      .find({ "cook.cookId": cookId })
       .sort({ popularity: -1, rate: -1 })
       .skip(skip)
       .limit(Number(limit));
-    const totalMeals = await require("../models/Meal").countDocuments({ "cook.cookId": cookId });
+    const totalMeals = await require("../models/Meal").countDocuments({
+      "cook.cookId": cookId,
+    });
     res.status(200).json({
       meals,
       pagination: {
@@ -457,7 +518,10 @@ async function getMostPopularMealsByCook(req, res) {
     res.status(500).json({
       success: false,
       message: "فشل في جلب أكثر وجبات الطاهي شعبية",
-      error: process.env.NODE_ENV === "development" ? err.message : "Internal server error",
+      error:
+        process.env.NODE_ENV === "development"
+          ? err.message
+          : "Internal server error",
     });
   }
 }
@@ -465,29 +529,33 @@ async function getMostPopularMealsByCook(req, res) {
 async function getCookMealCategories(req, res) {
   try {
     if (!req.user || req.user.role !== "cook") {
-      return res.status(403).json({ message: "غير مصرح لك بالوصول إلى هذه البيانات" });
+      return res
+        .status(403)
+        .json({ message: "غير مصرح لك بالوصول إلى هذه البيانات" });
     }
     const cookId = req.user._id;
     const mongoose = require("mongoose");
     const cook = await require("../models/User").findById(cookId);
     if (!cook || cook.role !== "cook") {
-      return res.status(404).json({ success: false, message: "الطاهي غير موجود" });
+      return res
+        .status(404)
+        .json({ success: false, message: "الطاهي غير موجود" });
     }
     const categories = await require("../models/Meal").aggregate([
       { $match: { "cook.cookId": new mongoose.Types.ObjectId(cookId) } },
       {
         $group: {
           _id: "$category.categoryId",
-          categoryName: { $first: "$category.categoryName" }
-        }
+          categoryName: { $first: "$category.categoryName" },
+        },
       },
       {
         $project: {
           _id: 0,
           categoryId: "$__id",
-          categoryName: 1
-        }
-      }
+          categoryName: 1,
+        },
+      },
     ]);
     res.status(200).json({ categories });
   } catch (err) {
@@ -495,7 +563,7 @@ async function getCookMealCategories(req, res) {
     res.status(500).json({
       success: false,
       message: "فشل في جلب تصنيفات وجبات الطاهي",
-      error: err.message || "Internal server error"
+      error: err.message || "Internal server error",
     });
   }
 }

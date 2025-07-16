@@ -20,7 +20,7 @@ const userSchema = new mongoose.Schema(
     },
     isActive: { type: Boolean, default: true },
     isVerified: { type: Boolean, default: false }, // for email verification
-    isIdentityVerified: { type: Boolean, default: false }, // for document verification
+    isIdentityVerified: { type: Boolean }, // for document verification
     profileImage: { type: String },
     // cook
     specialization: { type: String }, // specialization
