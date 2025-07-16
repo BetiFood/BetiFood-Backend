@@ -403,6 +403,12 @@ const updateOrder = asyncHandler(async (req, res) => {
         order.assigned_cook = req.userId;
         updateMessage = "تم قبول الطلب بنجاح";
       }
+      // إلغاء الطلب من قبل الشيف
+      if (status === "cancelled" && ["pending", "preparing"].includes(order.status)) {
+        canUpdate = true;
+        order.status = status;
+        updateMessage = "تم إلغاء الطلب بواسطة الشيف بنجاح";
+      }
       // تحديث الحالة الأخرى (مثلاً من preparing إلى completed أو cancelled)
       else if (status && allowedStatuses.includes(status)) {
         canUpdate = true;
