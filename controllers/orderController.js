@@ -178,7 +178,19 @@ const getAllOrders = asyncHandler(async (req, res) => {
     .sort({ createdAt: -1 });
 
   // استخدم formatOrderResponse فقط بدون أي معالجة إضافية
-  const formattedOrders = orders.map((order) => formatOrderResponse(order));
+  let formattedOrders;
+  if (req.userRole === "cook") {
+    // عند الطباخ: لو حالة الطلب بعد completed، تظهر له دائماً مكتمل
+    formattedOrders = orders.map(order => {
+      let fakeOrder = { ...order._doc };
+      if (["delivering", "delivered"].includes(order.status)) {
+        fakeOrder.status = "completed";
+      }
+      return formatOrderResponse(fakeOrder);
+    });
+  } else {
+    formattedOrders = orders.map(order => formatOrderResponse(order));
+  }
 
   res.status(200).json({
     success: true,
@@ -448,12 +460,27 @@ const updateOrder = asyncHandler(async (req, res) => {
             "غير مصرح لك بتحديث هذا الطلب - الطلب لا يحتوي على وجبات من صنعك",
         });
       }
+      // منع الطباخ من رؤية أو تعديل الطلب إذا أصبح مكتمل أو بعده
+      if (["completed", "delivering", "delivered"].includes(order.status)) {
+        return res.status(403).json({
+          success: false,
+          message: "لا يمكنك تعديل أو رؤية هذا الطلب بعد اكتماله أو تسليمه أو توصيله"
+        });
+      }
       // قبول الطلب (من pending إلى preparing)
       if ((status === "preparing" || status === "accept") && order.status === "pending") {
         canUpdate = true;
         order.status = "preparing";
         order.assigned_cook = req.userId;
         updateMessage = "تم قبول الطلب من الشيف بنجاح (قيد التحضير)";
+        // أوقف التنفيذ هنا حتى لا يدخل على شرط الحالات المسموحة
+        await order.save();
+        const formattedOrder = formatOrderResponse(order);
+        return res.status(200).json({
+          success: true,
+          message: updateMessage,
+          order: formattedOrder
+        });
       }
       // إلغاء الطلب من قبل الشيف
       if (status === "cancelled" && ["pending", "preparing"].includes(order.status)) {
@@ -496,7 +523,21 @@ const updateOrder = asyncHandler(async (req, res) => {
     }
     case "delivery": {
       allowedStatuses = ["delivering", "delivered"];
-      // مندوب التوصيل يمكنه فقط تحديث الطلبات المخصصة له
+      // قبول الطلب للتوصيل (من completed إلى delivering)
+      if ((status === "delivering" || status === "accept") && order.status === "completed" && !order.assigned_delivery) {
+        canUpdate = true;
+        order.assigned_delivery = req.userId;
+        order.status = "delivering";
+        updateMessage = "تم قبول الطلب للتوصيل(قيد التوصيل)";
+        await order.save();
+        const formattedOrder = formatOrderResponse(order);
+        return res.status(200).json({
+          success: true,
+          message: updateMessage,
+          order: formattedOrder
+        });
+      }
+      // تحقق أن الطلب مخصص لهذا الدليفري في باقي الحالات
       const orderAssignedDelivery = order.assigned_delivery?._id
         ? order.assigned_delivery._id.toString()
         : order.assigned_delivery?.toString();
@@ -506,13 +547,6 @@ const updateOrder = asyncHandler(async (req, res) => {
           message: "غير مصرح لك بتحديث هذا الطلب - الطلب غير مخصص لك",
         });
       }
-      // قبول الطلب للتوصيل (من completed إلى delivering)
-      if ((status === "delivering" || status === "accept") && order.status === "completed" && !order.assigned_delivery) {
-        canUpdate = true;
-        order.assigned_delivery = req.userId;
-        order.status = "delivering";
-        updateMessage = "تم قبول الطلب للتوصيل من الدليفري بنجاح (قيد التوصيل)";
-      }
       // تأكيد تسليم الطلب من الدليفري
       else if ((status === "delivered" || delivery_confirmed) && order.status === "delivering") {
         canUpdate = true;
@@ -520,7 +554,7 @@ const updateOrder = asyncHandler(async (req, res) => {
         order.delivery_status.delivered_by_delivery = true;
         order.delivery_status.delivery_confirmed_at = new Date();
         order.status = "delivered";
-        updateMessage = "تم تأكيد تسليم الطلب من الدليفري بنجاح";
+        updateMessage = "تم تأكيد تسليم الطلب";
       }
       // تحديث الملاحظات فقط
       else if (notes && !status && !delivery_confirmed) {
