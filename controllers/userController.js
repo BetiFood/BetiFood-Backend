@@ -671,15 +671,16 @@ async function getVerificationStatus(req, res) {
   }
 }
 
-// Get all pending verifications (admin only)
+// Get all verifications (admin only, with optional status filter)
 async function getPendingVerifications(req, res) {
   await connectDB();
   try {
     const { page = 1, limit = 10, status } = req.query;
     // Build filter
-    const filter = {
-      status: status || "pending",
-    };
+    const filter = {};
+    if (status && status !== "all") {
+      filter.status = status;
+    }
     // Pagination
     const skip = (page - 1) * limit;
     const verifications = await Verification.find(filter)
@@ -690,25 +691,27 @@ async function getPendingVerifications(req, res) {
     // Get total count for pagination
     const totalVerifications = await Verification.countDocuments(filter);
     res.status(200).json({
-      verifications: verifications.map((v) => ({
-        _id: v._id,
-        userId: v.userId._id,
-        name: v.userId.name,
-        email: v.userId.email,
-        phone: v.userId.phone,
-        role: v.userId.role,
-        verification: {
-          nationalId: v.nationalId,
-          idCardFrontImage: v.idCardFrontImage,
-          idCardBackImage: v.idCardBackImage,
-          criminalRecord: v.criminalRecord,
-          status: v.status,
-          submittedAt: v.submittedAt,
-          reviewedAt: v.reviewedAt,
-          reviewNotes: v.reviewNotes,
-          reviewedBy: v.reviewedBy,
-        },
-      })),
+      verifications: verifications
+        .filter((v) => v.userId)
+        .map((v) => ({
+          _id: v._id,
+          userId: v.userId._id,
+          name: v.userId.name,
+          email: v.userId.email,
+          phone: v.userId.phone,
+          role: v.userId.role,
+          verification: {
+            nationalId: v.nationalId,
+            idCardFrontImage: v.idCardFrontImage,
+            idCardBackImage: v.idCardBackImage,
+            criminalRecord: v.criminalRecord,
+            status: v.status,
+            submittedAt: v.submittedAt,
+            reviewedAt: v.reviewedAt,
+            reviewNotes: v.reviewNotes,
+            reviewedBy: v.reviewedBy,
+          },
+        })),
       pagination: {
         currentPage: Number(page),
         totalPages: Math.ceil(totalVerifications / limit),
@@ -718,7 +721,7 @@ async function getPendingVerifications(req, res) {
       },
     });
   } catch (err) {
-    console.error("Error getting pending verifications:", err);
+    console.error("Error getting verifications:", err);
     res.status(500).json({
       success: false,
       message: "فشل في جلب طلبات التحقق",
@@ -758,6 +761,13 @@ async function reviewVerification(req, res) {
     const user = await User.findById(userId);
     if (user) {
       user.isIdentityVerified = status === "approved";
+      // Synchronize the embedded verification object if it exists
+      if (user.verification) {
+        user.verification.status = status;
+        user.verification.reviewedAt = verification.reviewedAt;
+        user.verification.reviewNotes = reviewNotes;
+        user.verification.reviewedBy = adminId;
+      }
       await user.save();
     }
     res.status(200).json({
