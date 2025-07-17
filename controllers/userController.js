@@ -23,7 +23,7 @@ function transformUsersData(users) {
 async function getAllCooks(req, res) {
   await connectDB();
   try {
-    const { page = 1, limit = 10, sort = "newest" } = req.query;
+    const { page = 1, limit = 10, sort = "newest", query } = req.query;
 
     // Build filter for cooks only
     const filter = {
@@ -31,6 +31,10 @@ async function getAllCooks(req, res) {
       isVerified: true,
       isIdentityVerified: true,
     };
+
+    if (query) {
+      filter.name = { $regex: query, $options: "i" };
+    }
 
     // Build sort options
     let sortOption = {};
