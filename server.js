@@ -43,8 +43,11 @@ app.use("/api/categories", categoryRoutes);
 app.use("/api/wishlist", wishlistRoutes);
 app.use("/api/cook-reviews", cookReviewRoutes);
 app.use("/api/meal-reviews", mealReviewRoutes);
-// Serve uploaded files (fallback for local storage)
-app.use("/uploads", express.static("uploads"));
+
+// Serve uploaded files (fallback for local storage) - only in development
+if (process.env.NODE_ENV !== "production") {
+  app.use("/uploads", express.static("uploads"));
+}
 
 app.get("/", (req, res) => {
   res.send("Hello from Express!");
