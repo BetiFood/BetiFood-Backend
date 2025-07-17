@@ -393,12 +393,14 @@ const updateOrder = asyncHandler(async (req, res) => {
           order.discount_amount;
         order.payment.amount_due = order.final_amount;
       }
-      // تأكيد استلام الطلب
-      else if (client_received && order.status === "delivering") {
+      // تأكيد استلام الطلب (قبول العميل)
+      else if ((status === "delivered" || client_received) && order.status === "delivering") {
         canUpdate = true;
+        order.delivery_status = order.delivery_status || {};
         order.delivery_status.received_by_client = true;
         order.delivery_status.client_confirmed_at = new Date();
-        updateMessage = "تم تأكيد استلام الطلب";
+        order.status = "delivered";
+        updateMessage = "تم تأكيد استلام الطلب من العميل بنجاح";
       }
       // تحديث الملاحظات فقط
       else if (notes && order.status === "pending") {
@@ -447,11 +449,11 @@ const updateOrder = asyncHandler(async (req, res) => {
         });
       }
       // قبول الطلب (من pending إلى preparing)
-      if (status === "preparing" && order.status === "pending") {
+      if ((status === "preparing" || status === "accept") && order.status === "pending") {
         canUpdate = true;
-        order.status = status;
+        order.status = "preparing";
         order.assigned_cook = req.userId;
-        updateMessage = "تم قبول الطلب بنجاح";
+        updateMessage = "تم قبول الطلب من الشيف بنجاح (قيد التحضير)";
       }
       // إلغاء الطلب من قبل الشيف
       if (status === "cancelled" && ["pending", "preparing"].includes(order.status)) {
@@ -505,28 +507,20 @@ const updateOrder = asyncHandler(async (req, res) => {
         });
       }
       // قبول الطلب للتوصيل (من completed إلى delivering)
-      if (
-        status === "delivering" &&
-        order.status === "completed" &&
-        !order.assigned_delivery
-      ) {
+      if ((status === "delivering" || status === "accept") && order.status === "completed" && !order.assigned_delivery) {
         canUpdate = true;
         order.assigned_delivery = req.userId;
-        order.status = status;
-        updateMessage = "تم قبول الطلب للتوصيل";
+        order.status = "delivering";
+        updateMessage = "تم قبول الطلب للتوصيل من الدليفري بنجاح (قيد التوصيل)";
       }
-      // تحديث طلب مخصص له
-      else if (status && allowedStatuses.includes(status)) {
+      // تأكيد تسليم الطلب من الدليفري
+      else if ((status === "delivered" || delivery_confirmed) && order.status === "delivering") {
         canUpdate = true;
-        order.status = status;
-        updateMessage = `تم تحديث حالة التوصيل إلى ${translateStatus(status)}`;
-      }
-      // تأكيد تسليم الطلب
-      else if (delivery_confirmed && order.status === "delivering") {
-        canUpdate = true;
+        order.delivery_status = order.delivery_status || {};
         order.delivery_status.delivered_by_delivery = true;
         order.delivery_status.delivery_confirmed_at = new Date();
-        updateMessage = "تم تأكيد تسليم الطلب";
+        order.status = "delivered";
+        updateMessage = "تم تأكيد تسليم الطلب من الدليفري بنجاح";
       }
       // تحديث الملاحظات فقط
       else if (notes && !status && !delivery_confirmed) {
