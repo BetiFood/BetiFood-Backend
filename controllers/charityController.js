@@ -1,11 +1,29 @@
 const Charity = require("../models/Charity");
+const cloudinary = require("cloudinary").v2;
 
 // إضافة جمعية جديدة
 exports.createCharity = async (req, res) => {
   try {
     const { name, description, address, phone, email, website } = req.body;
 
-    const image = req.file ? req.file.path : undefined;
+    let imageUrl = undefined;
+
+    // Handle image upload to Cloudinary if file exists
+    if (req.file) {
+      try {
+        const result = await cloudinary.uploader
+          .upload_stream({ folder: "charity" }, (error, result) => {
+            if (error) {
+              console.error("Cloudinary upload error:", error);
+            }
+          })
+          .end(req.file.buffer);
+
+        imageUrl = result.secure_url;
+      } catch (uploadError) {
+        console.error("Image upload failed:", uploadError);
+      }
+    }
 
     const createdBy = req.user._id;
 
@@ -16,18 +34,11 @@ exports.createCharity = async (req, res) => {
       phone,
       email,
       website,
-      image,
-      createdBy:req.userId,
+      image: imageUrl,
+      createdBy: req.userId,
     });
     await newCharity.save();
-    // بناء رابط الصورة الكامل
-    let imageUrl = undefined;
-    if (newCharity.image) {
-      imageUrl = req.protocol + '://' + req.get('host') + '/' + newCharity.image.replace('\\', '/').replace(/^uploads[\\/]/, 'uploads/');
-      if (!imageUrl.includes('/uploads/')) {
-        imageUrl = req.protocol + '://' + req.get('host') + '/uploads/' + newCharity.image;
-      }
-    }
+
     res.status(201).json({
       success: true,
       message: "تم إضافة الجمعية الخيرية بنجاح",
@@ -41,8 +52,8 @@ exports.createCharity = async (req, res) => {
         website: newCharity.website,
         imageUrl: imageUrl,
         createdBy: newCharity.createdBy,
-        createdAt: newCharity.createdAt
-      }
+        createdAt: newCharity.createdAt,
+      },
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -65,43 +76,45 @@ exports.updateCharity = async (req, res) => {
     const { id } = req.params;
     const { name, description, address, phone, email, website } = req.body;
     let updateData = { name, description, address, phone, email, website };
-    // دعم تحديث الصورة إذا تم رفع صورة جديدة
+
+    // Handle image upload to Cloudinary if new file exists
     if (req.file) {
-      updateData.image = req.file.path;
+      try {
+        const result = await cloudinary.uploader
+          .upload_stream({ folder: "charity" }, (error, result) => {
+            if (error) {
+              console.error("Cloudinary upload error:", error);
+            }
+          })
+          .end(req.file.buffer);
+
+        updateData.image = result.secure_url;
+      } catch (uploadError) {
+        console.error("Image upload failed:", uploadError);
+      }
     } else if (req.body.image) {
       updateData.image = req.body.image;
     }
-    const updatedCharity = await Charity.findByIdAndUpdate(
-      id,
-      updateData,
-      { new: true }
-    );
-    // بناء رابط الصورة
-    let image = undefined;
-    if (updatedCharity && updatedCharity.image) {
-      // لو الصورة رابط خارجي (مثلاً يبدأ بـ http)
-      if (updatedCharity.image.startsWith('http')) {
-        image = updatedCharity.image;
-      } else {
-        image = req.protocol + '://' + req.get('host') + '/' + updatedCharity.image.replace('\\', '/').replace(/^uploads[\\/]/, 'uploads/');
-        if (!image.includes('/uploads/')) {
-          image = req.protocol + '://' + req.get('host') + '/uploads/' + updatedCharity.image;
-        }
-      }
-    }
+
+    const updatedCharity = await Charity.findByIdAndUpdate(id, updateData, {
+      new: true,
+    });
+
     res.json({
       success: true,
       message: "تم تعديل الجمعية بنجاح",
-      charity: updatedCharity ? {
-        id: updatedCharity._id,
-        name: updatedCharity.name,
-        description: updatedCharity.description,
-        address: updatedCharity.address,
-        phone: updatedCharity.phone,
-        email: updatedCharity.email,
-        website: updatedCharity.website,
-        image: image,
-      } : null
+      charity: updatedCharity
+        ? {
+            id: updatedCharity._id,
+            name: updatedCharity.name,
+            description: updatedCharity.description,
+            address: updatedCharity.address,
+            phone: updatedCharity.phone,
+            email: updatedCharity.email,
+            website: updatedCharity.website,
+            image: updatedCharity.image,
+          }
+        : null,
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
