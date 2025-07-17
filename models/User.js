@@ -18,7 +18,6 @@ const userSchema = new mongoose.Schema(
       enum: ["client", "cook", "admin", "delivery"],
       default: "client",
     },
-    isActive: { type: Boolean, default: true },
     isVerified: { type: Boolean, default: false }, // for email verification
     isIdentityVerified: { type: Boolean }, // for document verification
     profileImage: { type: String },

@@ -11,6 +11,15 @@ const getAllUsers = async (req, res) => {
 const createUser = async (req, res) => {
   const { name, email, password, phone, address, role, isVerified } = req.body;
 
+  // Prevent admin/client from setting verification or isIdentityVerified
+  if (
+    (role === "admin" || role === "client") &&
+    ("verification" in req.body || "isIdentityVerified" in req.body)
+  ) {
+    delete req.body.verification;
+    delete req.body.isIdentityVerified;
+  }
+
   if (!name || !email || !password || !phone || !address) {
     return res.status(400).json({ message: "جميع الحقول مطلوبة" });
   }
@@ -39,6 +48,15 @@ const createUser = async (req, res) => {
 const updateUser = async (req, res) => {
   const { id } = req.params;
   const { name, email, password, phone, address, role, isVerified } = req.body;
+
+  // Prevent admin/client from setting verification or isIdentityVerified
+  if (
+    (role === "admin" || role === "client") &&
+    ("verification" in req.body || "isIdentityVerified" in req.body)
+  ) {
+    delete req.body.verification;
+    delete req.body.isIdentityVerified;
+  }
 
   const user = await User.findById(id);
   if (!user) return res.status(404).json({ message: "المستخدم غير موجود" });
