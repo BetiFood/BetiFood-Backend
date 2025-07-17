@@ -342,6 +342,15 @@ async function updateUserProfile(req, res) {
       return res.status(404).json({ message: "المستخدم غير موجود" });
     }
 
+    // Prevent admin/client from setting verification or isIdentityVerified
+    if (
+      (user.role === "admin" || user.role === "client") &&
+      ("verification" in req.body || "isIdentityVerified" in req.body)
+    ) {
+      delete req.body.verification;
+      delete req.body.isIdentityVerified;
+    }
+
     // Handle image upload if file is provided
     if (req.file) {
       let imageUrl;
