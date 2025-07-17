@@ -521,11 +521,7 @@ async function getAllCookReviews(req, res) {
 // Get top-rated cook reviews for clients
 async function getTopRatedCookReviews(req, res) {
   try {
-    if (!req.user || !req.user._id) {
-      return res
-        .status(401)
-        .json({ success: false, message: "يجب تسجيل الدخول أولاً" });
-    }
+    // make endpoint public
     const limit = parseInt(req.query.limit) || 5;
     const reviews = await CookReview.find({ isActive: true })
       .sort({ rating: -1, createdAt: -1 })
