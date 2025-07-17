@@ -44,8 +44,16 @@ exports.getAllDeliveries = async (req, res) => {
       selectFields = "-password -__v";
     }
 
-    const { name, vehicleType, address, rate, popularity } = req.query;
-    let filter = { role: "delivery", isActive: true };
+    const { name, vehicleType, address, rate, popularity, page = 1, limit = 10, sort = "newest", query } = req.query;
+    let filter = { role: "delivery" };
+
+    if (query) {
+      filter.$or = [
+        { name: { $regex: query, $options: "i" } },
+        { email: { $regex: query, $options: "i" } },
+        { address: { $regex: query, $options: "i" } },
+      ];
+    }
 
     if (name) {
       filter.name = { $regex: name, $options: "i" };
@@ -63,8 +71,43 @@ exports.getAllDeliveries = async (req, res) => {
       filter.popularity = { $gte: Number(popularity) };
     }
 
-    const deliveries = await User.find(filter).select(selectFields);
-    res.json(deliveries);
+    // Sorting
+    let sortOption = {};
+    switch (sort) {
+      case "rate":
+        sortOption.rate = -1;
+        break;
+      case "popularity":
+        sortOption.popularity = -1;
+        break;
+      case "oldest":
+        sortOption.createdAt = 1;
+        break;
+      case "newest":
+      default:
+        sortOption.createdAt = -1;
+    }
+
+    // Pagination
+    const skip = (page - 1) * limit;
+    const totalDeliveries = await User.countDocuments(filter);
+    const deliveries = await User.find(filter)
+      .select(selectFields)
+      .sort(sortOption)
+      .skip(Number(skip))
+      .limit(Number(limit));
+
+    res.json({
+      deliveries,
+      pagination: {
+        currentPage: Number(page),
+        totalPages: Math.ceil(totalDeliveries / limit),
+        totalDeliveries,
+        hasNext: skip + deliveries.length < totalDeliveries,
+        hasPrev: page > 1,
+      },
+      sortBy: sort,
+    });
   } catch (err) {
     res.status(500).json({ message: "حدث خطأ أثناء جلب مندوبي التوصيل" });
   }
@@ -76,7 +119,7 @@ exports.getDeliveryById = async (req, res) => {
     if (req.user.role === "admin") {
       selectFields = "-password -__v";
     }
-    const delivery = await User.findOne({ _id: req.params.id, role: "delivery", isActive: true })
+    const delivery = await User.findOne({ _id: req.params.id, role: "delivery"})
       .select(selectFields);
     if (!delivery) return res.status(404).json({ message: "مندوب التوصيل غير موجود" });
     res.json(delivery);
@@ -121,143 +164,6 @@ exports.deleteDelivery = async (req, res) => {
   }
 };
 
-// exports.getAvailableOrdersForDelivery = async (req, res) => {
-//   if (!req.user.isIdentityVerified) {
-//     return res.status(403).json({ message: "يجب توثيق بياناتك أولاً قبل العمل كمندوب توصيل." });
-//   }
-//   try {
-//     const filter = {
-//       status: "completed",
-//       $or: [
-//         { assigned_delivery: { $exists: false } },
-//         { assigned_delivery: null }
-//       ]
-//     };
-//     const orders = await Order.find(filter)
-//       .populate([
-//         { path: "meals.mealId", select: "name price image" },
-//         { path: "client_id", select: "name email phone address" },
-//         { path: "assigned_cook", select: "name" }
-//       ])
-//       .sort({ createdAt: -1 });
-//     res.status(200).json({
-//       success: true,
-//       message: `تم جلب ${orders.length} طلب متاح للتوصيل بنجاح`,
-//       orders,
-//       count: orders.length
-//     });
-//   } catch (err) {
-//     res.status(500).json({ message: 'حدث خطأ أثناء جلب الطلبات المتاحة' });
-//   }
-// };
-
-// exports.getMyDeliveryOrders = async (req, res) => {
-//   if (!req.user.isIdentityVerified) {
-//     return res.status(403).json({ message: "يجب توثيق بياناتك أولاً قبل العمل كمندوب توصيل." });
-//   }
-//   try {
-//     const filter = {
-//       assigned_delivery: new mongoose.Types.ObjectId(req.user._id)
-//     };
-//     const orders = await Order.find(filter)
-//       .populate([
-//         { path: "meals.mealId", select: "name price image" },
-//         { path: "client_id", select: "name email phone address" },
-//         { path: "assigned_cook", select: "name" }
-//       ])
-//       .sort({ createdAt: -1 });
-//     res.status(200).json({
-//       success: true,
-//       message: `تم جلب ${orders.length} طلب من طلباتك بنجاح`,
-//       orders,
-//       count: orders.length
-//     });
-//   } catch (err) {
-//     res.status(500).json({ message: 'حدث خطأ أثناء جلب طلباتك' });
-//   }
-// };
-
-// exports.acceptOrderByDelivery = async (req, res) => {
-//   if (!req.user.isIdentityVerified) {
-//     return res.status(403).json({ message: "يجب توثيق بياناتك أولاً قبل العمل كمندوب توصيل." });
-//   }
-//   try {
-//     const { id } = req.params;
-//     const { notes } = req.body;
-//     const order = await Order.findById(id)
-//       .populate([
-//         { path: "meals.mealId", select: "name price image" },
-//         { path: "client_id", select: "name email" },
-//         { path: "assigned_cook", select: "name" }
-//       ]);
-//     if (!order) {
-//       return res.status(404).json({ message: "الطلب غير موجود" });
-//     }
-//     if (order.status !== "completed") {
-//       return res.status(400).json({ message: "يمكن قبول الطلبات في حالة مكتمل فقط" });
-//     }
-//     if (order.assigned_delivery) {
-//       return res.status(400).json({ message: "الطلب مخصص لمندوب توصيل آخر بالفعل" });
-//     }
-//     order.assigned_delivery = req.user._id;
-//     order.status = "delivering";
-//     if (notes) order.notes = notes;
-//     await order.save();
-//     res.status(200).json({ message: "تم قبول الطلب للتوصيل بنجاح", order });
-//   } catch (err) {
-//     res.status(500).json({ message: 'حدث خطأ أثناء قبول الطلب' });
-//   }
-// };
-
-// exports.updateOrderStatus = async (req, res) => {
-//   if (!req.user.isIdentityVerified) {
-//     return res.status(403).json({ message: "يجب توثيق بياناتك أولاً قبل العمل كمندوب توصيل." });
-//   }
-//   try {
-//     const { id } = req.params;
-//     const { status, notes, delivery_confirmed } = req.body;
-//     const order = await Order.findById(id)
-//       .populate([
-//         { path: "meals.mealId", select: "name price image" },
-//         { path: "client_id", select: "name email" },
-//         { path: "assigned_cook", select: "name" },
-//         { path: "assigned_delivery", select: "name" }
-//       ]);
-//     if (!order) {
-//       return res.status(404).json({ message: "الطلب غير موجود" });
-//     }
-//     const orderAssignedDelivery = order.assigned_delivery?._id ? order.assigned_delivery._id.toString() : order.assigned_delivery?.toString();
-//     if (orderAssignedDelivery !== req.user._id.toString()) {
-//       return res.status(403).json({ message: "غير مصرح لك بتحديث هذا الطلب - الطلب غير مخصص لك" });
-//     }
-//     const allowedStatuses = ["delivering", "delivered"];
-//     let updateMessage = "";
-//     if (status === "delivering" && order.status === "completed" && !order.assigned_delivery) {
-//       order.assigned_delivery = req.user._id;
-//       order.status = status;
-//       updateMessage = "تم قبول الطلب للتوصيل";
-//     } else if (status && allowedStatuses.includes(status)) {
-//       order.status = status;
-//       updateMessage = `تم تحديث حالة التوصيل إلى ${status}`;
-//     } else if (delivery_confirmed && order.status === "delivering") {
-//       order.delivery_status = order.delivery_status || {};
-//       order.delivery_status.delivered_by_delivery = true;
-//       order.delivery_status.delivery_confirmed_at = new Date();
-//       updateMessage = "تم تأكيد تسليم الطلب";
-//     } else if (notes && !status && !delivery_confirmed) {
-//       order.notes = notes;
-//       updateMessage = "تم تحديث الملاحظات بنجاح";
-//     } else if (!status && !delivery_confirmed && !notes) {
-//       return res.status(400).json({ message: "يجب تحديد الحالة أو تأكيد التسليم أو الملاحظات للتحديث" });
-//     } else if (status && !allowedStatuses.includes(status)) {
-//       return res.status(400).json({ message: `الحالة ${status} غير مسموحة لمندوب التوصيل. الحالات المسموحة: delivering, delivered` });
-//     }
-//     await order.save();
-//     res.status(200).json({ message: updateMessage || "تم تحديث الطلب بنجاح", order });
-//   } catch (err) {
-//     res.status(500).json({ message: 'حدث خطأ أثناء تحديث حالة الطلب' });
-//   }
-// };
 
 exports.rateDelivery = async (req, res) => {
   try {
