@@ -131,3 +131,30 @@ exports.deleteCharity = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
+
+exports.getCharityById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const charity = await Charity.findById(id);
+    if (!charity) {
+      return res.status(404).json({ success: false, message: "الجمعية غير موجودة" });
+    }
+    res.json({
+      success: true,
+      charity: {
+        id: charity._id,
+        name: charity.name,
+        description: charity.description,
+        address: charity.address,
+        phone: charity.phone,
+        email: charity.email,
+        website: charity.website,
+        image: charity.image,
+        createdBy: charity.createdBy,
+        createdAt: charity.createdAt
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};

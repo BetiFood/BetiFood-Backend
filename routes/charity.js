@@ -14,6 +14,7 @@ router.post(
   charityController.createCharity
 );
 router.get("/", charityController.getAllCharities);
+router.get('/:id', charityController.getCharityById);
 router.put(
   "/:id",
   auth,
