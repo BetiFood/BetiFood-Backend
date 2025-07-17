@@ -19,7 +19,7 @@ const {
 } = require("../middleware/authMiddleware");
 
 // Client route to get top-rated cook reviews
-router.get("/top-rated", protect, requireClientRole, getTopRatedCookReviews);
+router.get("/top-rated", getTopRatedCookReviews);
 
 // Public routes
 //router.get("/cook/:cookId", getCookReviews); // Get reviews for a specific cook
