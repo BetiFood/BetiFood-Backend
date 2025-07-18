@@ -15,6 +15,7 @@ const orderSchema = new mongoose.Schema({
   phone: { type: String, required: true },
   address: { type: String, required: true },
   client_id: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+  beneficiary: { type: require('mongoose').Schema.Types.ObjectId, ref: 'Beneficiary' },
   meals: [mealSchema],
   total_price: { type: Number, required: true },
   status: {
