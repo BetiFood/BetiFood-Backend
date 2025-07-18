@@ -695,6 +695,20 @@ const updateOrder = asyncHandler(async (req, res) => {
     { path: "assigned_delivery", select: "name" },
   ]);
 
+  // بعد حفظ الطلب وتغيير حالته
+  await updatedOrder.save();
+  // مزامنة حالة التبرع إذا كان الطلب تبرع
+  if (updatedOrder.isDonation && updatedOrder.donationId) {
+    const Donation = require('../models/Donation');
+    const donation = await Donation.findById(updatedOrder.donationId);
+    if (donation) {
+      if (updatedOrder.status === 'delivered') donation.status = 'delivered';
+      else if (updatedOrder.status === 'completed') donation.status = 'approved';
+      else if (updatedOrder.status === 'preparing') donation.status = 'pending';
+      await donation.save();
+    }
+  }
+
   const formattedOrder = formatOrderResponse(updatedOrder);
 
   res.status(200).json({
@@ -715,7 +729,7 @@ const checkout = asyncHandler(async (req, res) => {
     delivery_fee = 20,
     tax_amount = 10,
     discount_amount = 5,
-    donationAmount // <-- دعم التبرع مع الطلب
+    donationAmount 
   } = req.body;
 
   // التحقق من وجود سلة مشتريات
@@ -977,7 +991,7 @@ const acceptOrderByDelivery = asyncHandler(async (req, res) => {
   });
 });
 
-const acceptDonationOrderByDelivery = async (req, res) => {
+const acceptDonationOrderByDelivery = asyncHandler(async (req, res) => {
   try {
     const { orderId } = req.body;
     if (req.user.role !== 'delivery') {
@@ -1000,20 +1014,7 @@ const acceptDonationOrderByDelivery = async (req, res) => {
   } catch (err) {
     res.status(500).json({ message: 'حدث خطأ أثناء قبول الطلب', error: err.message, stack: err.stack });
   }
-};
-
-const assignBeneficiaryToOrder = async (req, res) => {
-  try {
-    const { orderId, beneficiaryId } = req.body;
-    const order = await Order.findById(orderId);
-    if (!order) return res.status(404).json({ message: 'الطلب غير موجود' });
-    order.beneficiary = beneficiaryId;
-    await order.save();
-    res.status(200).json({ message: 'تم ربط المستفيد بالطلب بنجاح', order });
-  } catch (err) {
-    res.status(500).json({ message: 'حدث خطأ أثناء الربط' });
-  }
-};
+});
 
 module.exports = {
   getAllOrders,
@@ -1027,5 +1028,4 @@ module.exports = {
   acceptOrderByCook,
   acceptOrderByDelivery,
   acceptDonationOrderByDelivery,
-  assignBeneficiaryToOrder,
 };

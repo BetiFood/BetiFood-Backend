@@ -13,7 +13,7 @@ const {
   acceptOrderByCook,
   acceptOrderByDelivery,
   acceptDonationOrderByDelivery,
-  assignBeneficiaryToOrder
+  
 } = require('../controllers/orderController');
 const { protect, requireAdminRole } = require('../middleware/authMiddleware');
 
@@ -52,6 +52,5 @@ router.post("/checkout", protect, checkRole("client"), checkout);
 router.put("/:id", protect, updateOrder);
 
 router.post('/accept-donation', protect, acceptDonationOrderByDelivery);
-router.post('/assign-beneficiary', protect, requireAdminRole, assignBeneficiaryToOrder);
 
 module.exports = router; 

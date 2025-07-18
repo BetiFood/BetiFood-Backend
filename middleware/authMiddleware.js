@@ -18,6 +18,7 @@ async function protect(req, res, next) {
     }
 
     req.user = user;
+    req.userRole = user.role; 
     next();
   } catch (err) {
     return res.status(401).json({ message: "توكن غير صالح" });
