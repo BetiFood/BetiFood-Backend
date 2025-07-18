@@ -5,6 +5,8 @@ const checkRole = require("../middleware/roles");
 const auth = require("../middleware/auth");
 const multer = require("multer");
 const upload = multer({ storage: multer.memoryStorage() });
+const { createDonation, createDonationToCook, createDonationMeal } = require('../controllers/charityController');
+const { protect } = require('../middleware/authMiddleware');
 
 router.post(
   "/",
@@ -27,5 +29,10 @@ router.delete(
   checkRole("admin"),
   charityController.deleteCharity
 );
+router.post('/donate', protect, createDonation);
+router.post('/donate-cook', protect, createDonationToCook);
+router.post('/donate-meal', protect, createDonationMeal);
+
+router.get('/:id/donations', protect, checkRole('admin'), charityController.getCharityDonations);
 
 module.exports = router;
