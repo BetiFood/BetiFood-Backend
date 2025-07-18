@@ -4,6 +4,7 @@ const Meal = require("../models/Meal");
 const asyncHandler = require("../utils/asyncHandler");
 const { ApiResponse } = require("../utils/response");
 const mongoose = require("mongoose");
+const Donation = require("../models/Donation");
 
 // دالة ترجمة حالات الطلب
 const translateStatus = (status) => {
@@ -694,6 +695,20 @@ const updateOrder = asyncHandler(async (req, res) => {
     { path: "assigned_delivery", select: "name" },
   ]);
 
+  // بعد حفظ الطلب وتغيير حالته
+  await updatedOrder.save();
+  // مزامنة حالة التبرع إذا كان الطلب تبرع
+  if (updatedOrder.isDonation && updatedOrder.donationId) {
+    const Donation = require('../models/Donation');
+    const donation = await Donation.findById(updatedOrder.donationId);
+    if (donation) {
+      if (updatedOrder.status === 'delivered') donation.status = 'delivered';
+      else if (updatedOrder.status === 'completed') donation.status = 'approved';
+      else if (updatedOrder.status === 'preparing') donation.status = 'pending';
+      await donation.save();
+    }
+  }
+
   const formattedOrder = formatOrderResponse(updatedOrder);
 
   res.status(200).json({
@@ -714,6 +729,7 @@ const checkout = asyncHandler(async (req, res) => {
     delivery_fee = 20,
     tax_amount = 10,
     discount_amount = 5,
+    donationAmount 
   } = req.body;
 
   // التحقق من وجود سلة مشتريات
@@ -778,6 +794,16 @@ const checkout = asyncHandler(async (req, res) => {
     notes,
     status: "pending",
   });
+
+  // بعد إنشاء الطلب، إذا كان هناك تبرع
+  if (donationAmount && donationAmount > 0) {
+    await Donation.create({
+      donor: req.userId,
+      amount: donationAmount,
+      toOrder: order._id,
+      message: "تبرع مع الطلب"
+    });
+  }
 
   // تحديث كميات الوجبات
   for (const item of cart.meals) {
@@ -965,6 +991,31 @@ const acceptOrderByDelivery = asyncHandler(async (req, res) => {
   });
 });
 
+const acceptDonationOrderByDelivery = asyncHandler(async (req, res) => {
+  try {
+    const { orderId } = req.body;
+    if (req.user.role !== 'delivery') {
+      return res.status(403).json({ message: 'غير مصرح لك بتنفيذ هذا الإجراء' });
+    }
+    const order = await Order.findById(orderId);
+    if (!order) {
+      return res.status(404).json({ message: 'الطلب غير موجود' });
+    }
+    if (order.assigned_delivery) {
+      return res.status(400).json({ message: 'تم تعيين مندوب توصيل لهذا الطلب بالفعل' });
+    }
+    if (order.payment?.method !== 'donation' && order.payment?.method !== 'cash' && order.client_name !== 'محتاج') {
+      return res.status(400).json({ message: 'هذا الطلب ليس طلب تبرع' });
+    }
+    order.assigned_delivery = req.user._id;
+    order.status = 'delivering';
+    await order.save();
+    res.status(200).json({ message: 'تم قبول طلب التبرع بنجاح، يمكنك الآن توصيله', order });
+  } catch (err) {
+    res.status(500).json({ message: 'حدث خطأ أثناء قبول الطلب', error: err.message, stack: err.stack });
+  }
+});
+
 module.exports = {
   getAllOrders,
   updateOrder,
@@ -976,4 +1027,5 @@ module.exports = {
   getMyDeliveryOrders,
   acceptOrderByCook,
   acceptOrderByDelivery,
+  acceptDonationOrderByDelivery,
 };

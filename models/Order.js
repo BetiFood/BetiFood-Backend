@@ -15,6 +15,9 @@ const orderSchema = new mongoose.Schema({
   phone: { type: String, required: true },
   address: { type: String, required: true },
   client_id: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+  toCharity: { type: mongoose.Schema.Types.ObjectId, ref: "Charity", required: false }, // ربط الطلب بجمعية خيرية
+  isDonation: { type: Boolean, default: false }, // هل الطلب تبرع
+  donationId: { type: mongoose.Schema.Types.ObjectId, ref: "Donation", required: false }, // ربط الطلب بسجل التبرع
   meals: [mealSchema],
   total_price: { type: Number, required: true },
   status: {
