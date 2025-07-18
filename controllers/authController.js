@@ -62,7 +62,7 @@ exports.register = async (req, res) => {
       { expiresIn: "1d" }
     );
     // إعداد رابط التحقق للواجهة الأمامية
-    const verificationUrl = `http://localhost:5174/confirm-email?token=${verificationToken}`;
+    const verificationUrl = `${process.env.FRONTEND_URL}/confirm-email?token=${verificationToken}`;
     try {
       await sendEmail({
         to: email,
