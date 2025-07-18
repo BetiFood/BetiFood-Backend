@@ -136,100 +136,22 @@ exports.deleteCharity = async (req, res) => {
 
 exports.createDonation = async (req, res) => {
   try {
-    const { amount, toCharity, toOrder, message } = req.body;
+    const { amount, toCharity, message } = req.body;
     if (!amount || amount <= 0) {
       return res.status(400).json({ message: 'يجب إدخال مبلغ تبرع صحيح' });
+    }
+    if (!toCharity) {
+      return res.status(400).json({ message: 'يجب اختيار جمعية للتبرع لها' });
     }
     const donation = await Donation.create({
       donor: req.user._id,
       amount,
       toCharity,
-      toOrder,
       message
     });
     res.status(201).json({ message: 'تم التبرع بنجاح', donation });
   } catch (err) {
     res.status(500).json({ message: 'حدث خطأ أثناء التبرع' });
-  }
-};
-
-exports.createDonationToCook = async (req, res) => {
-  try {
-    const { amount, toCook, message } = req.body;
-    if (!amount || amount <= 0 || !toCook) {
-      return res.status(400).json({ message: 'يجب إدخال مبلغ وطباخة صحيحة' });
-    }
-    const donation = await Donation.create({
-      donor: req.user._id,
-      amount,
-      toCook,
-      message
-    });
-    res.status(201).json({ message: 'تم دعم الطباخة بنجاح', donation });
-  } catch (err) {
-    res.status(500).json({ message: 'حدث خطأ أثناء التبرع' });
-  }
-};
-
-exports.createDonationMeal = async (req, res) => {
-  try {
-    const { meal, quantity = 1, extra = 0, extraTo = 'cook', message } = req.body;
-    if (!meal || quantity <= 0) {
-      return res.status(400).json({ message: 'يجب اختيار وجبة وعدد صحيح' });
-    }
-    const mealDoc = await require('../models/Meal').findById(meal);
-    if (!mealDoc) {
-      return res.status(404).json({ message: 'الوجبة غير موجودة' });
-    }
-    const total = mealDoc.price * quantity;
-    // توزيع الزيادة حسب اختيار المتبرع
-    let extraToCook = 0, extraToDelivery = 0;
-    if (extraTo === 'cook') extraToCook = extra;
-    else if (extraTo === 'delivery') extraToDelivery = extra;
-    else if (extraTo === 'split') {
-      extraToCook = Math.floor(extra / 2);
-      extraToDelivery = extra - extraToCook;
-    }
-    // أنشئ الطلب مع جميع الحقول المطلوبة
-    const order = await Order.create({
-      client_name: "محتاج",
-      client_id: req.user._id,
-      address: req.user.address || "تبرع",
-      phone: req.user.phone || "تبرع",
-      meals: [{
-        mealId: meal,
-        quantity,
-        price: mealDoc.price,
-        cookId: mealDoc.cook?.cookId,
-        cookName: mealDoc.cook?.name,
-        mealName: mealDoc.name
-      }],
-      total_price: total,
-      final_amount: total,
-      payment: {
-        method: "cash", // استخدم cash مؤقتًا حتى يتم دعم donation في الـ schema
-        status: "paid",
-        amount_due: 0,
-        paid: total,
-        refunded: 0,
-      },
-      status: "pending",
-    });
-    // سجل التبرع
-    const donation = await Donation.create({
-      donor: req.user._id,
-      amount: total + extra,
-      meal,
-      toOrder: order._id,
-      message,
-      extra,
-      extraTo,
-      extraToCook,
-      extraToDelivery,
-    });
-    res.status(201).json({ message: 'تم التبرع بوجبة بنجاح', donation, order });
-  } catch (err) {
-    res.status(500).json({ message: 'حدث خطأ أثناء التبرع', error: err.message, stack: err.stack });
   }
 };
 
@@ -240,5 +162,142 @@ exports.getCharityDonations = async (req, res) => {
     res.json(donations);
   } catch (err) {
     res.status(500).json({ message: 'حدث خطأ أثناء جلب التبرعات', error: err.message });
+  }
+};
+
+exports.createMealDonationToCharity = async (req, res) => {
+  try {
+    const { toCharity, meals, message } = req.body;
+    if (!toCharity || !Array.isArray(meals) || meals.length === 0) {
+      return res.status(400).json({ message: 'يجب اختيار جمعية وقائمة وجبات صحيحة' });
+    }
+    const charity = await Charity.findById(toCharity);
+    if (!charity) {
+      return res.status(404).json({ message: 'الجمعية غير موجودة' });
+    }
+    const Meal = require('../models/Meal');
+    let total_price = 0;
+    const orderMeals = [];
+    for (const item of meals) {
+      const mealDoc = await Meal.findById(item.mealId);
+      if (!mealDoc) {
+        return res.status(404).json({ message: `الوجبة غير موجودة: ${item.mealId}` });
+      }
+      if (mealDoc.quantity < item.quantity) {
+        return res.status(400).json({ message: `الكمية المطلوبة غير متوفرة للوجبة: ${mealDoc.name}` });
+      }
+      orderMeals.push({
+        mealId: mealDoc._id,
+        mealName: mealDoc.name,
+        cookId: mealDoc.cook.cookId,
+        cookName: mealDoc.cook.name,
+        quantity: item.quantity,
+        price: mealDoc.price
+      });
+      total_price += mealDoc.price * item.quantity;
+    }
+    const donation = await Donation.create({
+      donor: req.user._id,
+      amount: total_price,
+      toCharity: charity._id,
+      message,
+      status: 'pending'
+    });
+    const order = await Order.create({
+      client_name: charity.name,
+      phone: charity.phone || '',
+      address: charity.address || '',
+      client_id: req.user._id,
+      toCharity: charity._id,
+      isDonation: true,
+      donationId: donation._id,
+      meals: orderMeals,
+      total_price,
+      final_amount: total_price,
+      payment: {
+        method: 'cash',
+        status: 'paid',
+        amount_due: 0,
+        paid: total_price,
+        refunded: 0
+      },
+      status: 'pending',
+      notes: message
+    });
+    donation.toOrder = order._id;
+    await donation.save();
+    for (const item of meals) {
+      await Meal.findByIdAndUpdate(item.mealId, { $inc: { quantity: -item.quantity } });
+    }
+    res.status(201).json({ message: 'تم التبرع بالوجبات للجمعية بنجاح', order, donation });
+  } catch (err) {
+    res.status(500).json({ message: 'حدث خطأ أثناء التبرع بالوجبات', error: err.message });
+  }
+};
+
+exports.getMyDonations = async (req, res) => {
+  try {
+    const donations = await Donation.find({ donor: req.user._id })
+      .populate('toCharity', 'name')
+      .populate('toOrder', 'meals total_price status');
+    res.json({ donations });
+  } catch (err) {
+    res.status(500).json({ message: 'حدث خطأ أثناء جلب التبرعات', error: err.message });
+  }
+};
+
+exports.updateDonation = async (req, res) => {
+  try {
+    if (!["delivery", "admin"].includes(req.user.role) && !req.user.isCharity) {
+      return res.status(403).json({ message: "غير مصرح لك بتحديث حالة التبرع" });
+    }
+    const { id } = req.params;
+    const { status, adminNote, proofImage, logNote } = req.body;
+    const donation = await Donation.findById(id);
+    if (!donation) {
+      return res.status(404).json({ message: 'التبرع غير موجود' });
+    }
+    if (status) donation.status = status;
+    if (adminNote) donation.adminNote = adminNote;
+    if (req.files && req.files.proofImage && req.files.proofImage[0]) {
+      donation.proofImage = req.files.proofImage[0].path || req.files.proofImage[0].filename;
+    } else if (proofImage) {
+      donation.proofImage = proofImage;
+    }
+    // إضافة log جديد
+    donation.logs = donation.logs || [];
+    donation.logs.push({
+      action: status || 'update',
+      by: req.user._id,
+      note: logNote || ''
+    });
+    await donation.save();
+    res.json({ message: 'تم تحديث التبرع بنجاح', donation });
+  } catch (err) {
+    res.status(500).json({ message: 'حدث خطأ أثناء تحديث التبرع', error: err.message });
+  }
+};
+
+exports.confirmDonationReceipt = async (req, res) => {
+  try {
+    if (!req.user.isCharity && req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'غير مصرح لك بتأكيد الاستلام' });
+    }
+    const { id } = req.params;
+    const donation = await Donation.findById(id);
+    if (!donation) {
+      return res.status(404).json({ message: 'التبرع غير موجود' });
+    }
+    donation.status = 'delivered';
+    donation.logs = donation.logs || [];
+    donation.logs.push({
+      action: 'delivered',
+      by: req.user._id,
+      note: 'تم تأكيد استلام الجمعية للتبرع'
+    });
+    await donation.save();
+    res.json({ message: 'تم تأكيد استلام التبرع بنجاح', donation });
+  } catch (err) {
+    res.status(500).json({ message: 'حدث خطأ أثناء تأكيد الاستلام', error: err.message });
   }
 };
