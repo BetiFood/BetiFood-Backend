@@ -61,7 +61,7 @@ exports.register = async (req, res) => {
       process.env.JWT_SECRET,
       { expiresIn: "1d" }
     );
-    // إعداد رابط التحقق للواجهة الأمامية
+    // Setup verification link for the frontend
     const verificationUrl = `${process.env.FRONTEND_URL}/confirm-email?token=${verificationToken}`;
     try {
       await sendEmail({
