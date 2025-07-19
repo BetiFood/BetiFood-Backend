@@ -53,6 +53,21 @@ const verificationSchema = new mongoose.Schema(
       ref: "User",
       default: null,
     },
+    // Cook-specific: address
+    address: {
+      governrate: { type: String },
+      city: { type: String },
+      street: { type: String },
+      buildingNumber: { type: Number },
+    },
+    // Cook-specific: location
+    location: {
+      latitude: { type: Number },
+      longitude: { type: Number },
+    },
+    // Delivery-specific: vehicleType and licenseNumber
+    vehicleType: { type: String },
+    licenseNumber: { type: String },
   },
   { timestamps: true }
 );

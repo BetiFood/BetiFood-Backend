@@ -229,7 +229,9 @@ async function getUserProfile(req, res) {
   try {
     const userId = req.user._id;
 
-    const user = await User.findById(userId).select("-password -__v");
+    const user = await User.findById(userId)
+      .populate("verificationRef")
+      .select("-password -__v");
 
     if (!user) {
       return res.status(404).json({ message: "المستخدم غير موجود" });
@@ -550,7 +552,17 @@ async function submitVerification(req, res) {
   await connectDB();
   try {
     const userId = req.user._id;
-    const { nationalId } = req.body;
+    const {
+      nationalId,
+      latitude,
+      longitude,
+      vehicleType,
+      licenseNumber,
+      governrate,
+      city,
+      street,
+      buildingNumber,
+    } = req.body;
 
     // Find user
     const user = await User.findById(userId);
@@ -603,13 +615,8 @@ async function submitVerification(req, res) {
       });
     }
 
-    // Remove any previous verification for this user (if rejected)
-    if (existingVerification && existingVerification.status === "rejected") {
-      await Verification.deleteOne({ _id: existingVerification._id });
-    }
-
-    // Create new verification document
-    const verification = await Verification.create({
+    // Role-specific validation
+    let verificationData = {
       userId,
       nationalId,
       idCardFrontImage,
@@ -620,10 +627,51 @@ async function submitVerification(req, res) {
       reviewedAt: null,
       reviewNotes: null,
       reviewedBy: null,
-    });
+    };
+    if (user.role === "cook") {
+      if (latitude === undefined || longitude === undefined) {
+        return res.status(400).json({
+          message: "يجب تحديد الموقع للطباخ (latitude, longitude)",
+        });
+      }
+      if (!governrate || !city || !street || !buildingNumber) {
+        return res.status(400).json({
+          message:
+            "يجب تحديد العنوان للطباخ (المحافظة، المدينة، الشارع، رقم المبنى)",
+        });
+      }
+      verificationData.location = {
+        latitude: Number(latitude),
+        longitude: Number(longitude),
+      };
+      verificationData.address = {
+        governrate,
+        city,
+        street,
+        buildingNumber: Number(buildingNumber),
+      };
+    }
+    if (user.role === "delivery") {
+      if (!vehicleType || !licenseNumber) {
+        return res.status(400).json({
+          message: "يجب تحديد نوع المركبة ورقم الرخصة لموظف التوصيل",
+        });
+      }
+      verificationData.vehicleType = vehicleType;
+      verificationData.licenseNumber = licenseNumber;
+    }
+
+    // Remove any previous verification for this user (if rejected)
+    if (existingVerification && existingVerification.status === "rejected") {
+      await Verification.deleteOne({ _id: existingVerification._id });
+    }
+
+    // Create new verification document
+    const verification = await Verification.create(verificationData);
 
     // Always set user.isIdentityVerified = false when submitting new verification
     user.isIdentityVerified = false;
+    user.verificationRef = verification._id;
     await user.save();
 
     res.status(200).json({
@@ -648,7 +696,9 @@ async function getVerificationStatus(req, res) {
   await connectDB();
   try {
     const userId = req.user._id;
-    const user = await User.findById(userId).select("-password -__v");
+    const user = await User.findById(userId)
+      .populate("verificationRef")
+      .select("-password -__v");
     if (!user) {
       return res.status(404).json({ message: "المستخدم غير موجود" });
     }
@@ -714,6 +764,10 @@ async function getPendingVerifications(req, res) {
             reviewedAt: v.reviewedAt,
             reviewNotes: v.reviewNotes,
             reviewedBy: v.reviewedBy,
+            address: v.address,
+            location: v.location,
+            vehicleType: v.vehicleType,
+            licenseNumber: v.licenseNumber,
           },
         })),
       pagination: {
@@ -765,13 +819,7 @@ async function reviewVerification(req, res) {
     const user = await User.findById(userId);
     if (user) {
       user.isIdentityVerified = status === "approved";
-      // Synchronize the embedded verification object if it exists
-      if (user.verification) {
-        user.verification.status = status;
-        user.verification.reviewedAt = verification.reviewedAt;
-        user.verification.reviewNotes = reviewNotes;
-        user.verification.reviewedBy = adminId;
-      }
+      user.verificationRef = verification._id;
       await user.save();
     }
     res.status(200).json({

@@ -12,6 +12,7 @@ const mealReviewRoutes = require("./routes/mealReviews.js");
 const userRoutes = require("./routes/users.js");
 const orderRoutes = require("./routes/orderRoutes.js");
 const charityRoutes = require("./routes/charity.js");
+const paymentRoutes = require("./routes/payment.js");
 
 const app = express();
 const port = 3000;
@@ -37,6 +38,7 @@ app.use("/api/cart", require("./routes/cart"));
 app.use("/api/orders", orderRoutes);
 app.use("/api/delivery", require("./routes/delivery"));
 app.use("/api/charity", charityRoutes);
+app.use("/api", paymentRoutes);
 
 app.use("/api/admin", adminRoutes);
 app.use("/api/categories", categoryRoutes);

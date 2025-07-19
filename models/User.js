@@ -19,18 +19,14 @@ const userSchema = new mongoose.Schema(
       default: "client",
     },
     isVerified: { type: Boolean, default: false }, // for email verification
-    isIdentityVerified: { type: Boolean }, // for document verification
-    profileImage: { type: String },
     // cook
     specialization: { type: String }, // specialization
     experience: { type: Number }, // experience
-    // delivery
-    vehicleType: { type: String }, // vehicle type
-    licenseNumber: { type: String }, // license number
-    currentLocation: {
-      latitude: { type: Number },
-      longitude: { type: Number },
-    },
+    // Removed delivery-specific fields from User model
+    // isIdentityVerified remains
+    isIdentityVerified: { type: Boolean }, // for document verification
+    profileImage: { type: String },
+    balance: { type: Number, default: 0 }, // for cook and delivery balances
     rate: {
       type: Number,
       default: 0.0,
@@ -61,57 +57,20 @@ const userSchema = new mongoose.Schema(
     },
     resetPasswordToken: { type: String, default: null },
     resetPasswordExpires: { type: Date, default: null },
-    verification: {
-      nationalId: {
-        type: String,
-        required: false, // Changed from required function to false
-        validate: {
-          validator: function (v) {
-            // Egyptian National ID validation (14 digits)
-            return /^\d{14}$/.test(v);
-          },
-          message: "الرقم القومي يجب أن يكون 14 رقم",
-        },
-      },
-      idCardFrontImage: {
-        type: String,
-        required: false, // Changed from required function to false
-      },
-      idCardBackImage: {
-        type: String,
-        required: false, // Changed from required function to false
-      },
-      criminalRecord: {
-        type: String,
-        required: false, // Changed from required function to false
-      },
-      status: {
-        type: String,
-        enum: ["pending", "approved", "rejected"],
-        default: "pending",
-      },
-      submittedAt: {
-        type: Date,
-        default: Date.now,
-      },
-      reviewedAt: {
-        type: Date,
-        default: null,
-      },
-      reviewNotes: {
-        type: String,
-        default: null,
-      },
-      reviewedBy: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "User",
-        default: null,
-      },
-    },
+    // Remove embedded verification object
     createdAt: { type: Date, default: Date.now },
   },
   { timestamps: true }
 );
+
+// Add a reference to the Verification document
+userSchema.add({
+  verificationRef: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Verification",
+    default: null,
+  },
+});
 
 // Enable getters for the schema and exclude virtual id field
 userSchema.set("toJSON", { getters: true, virtuals: false });
