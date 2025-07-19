@@ -13,6 +13,8 @@ const {
   getVerificationStatus,
   getPendingVerifications,
   reviewVerification,
+  updateVerification,
+  deleteVerification,
 } = require("../controllers/userController");
 const { protect } = require("../middleware/authMiddleware");
 const { admin } = require("../middleware/adminMiddleware");
@@ -52,6 +54,18 @@ router.post(
   submitVerification
 );
 router.get("/verification/status", protect, getVerificationStatus);
+router.put(
+  "/verification",
+  protect,
+  verificationUpload.fields([
+    { name: "idCardFront", maxCount: 1 },
+    { name: "idCardBack", maxCount: 1 },
+    { name: "criminalRecord", maxCount: 1 },
+    { name: "vehicleImage", maxCount: 3 },
+  ]),
+  updateVerification
+);
+router.delete("/verification", protect, deleteVerification);
 
 // Admin verification routes
 router.get("/admin/verifications", protect, admin, getPendingVerifications);

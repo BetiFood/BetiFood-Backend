@@ -593,6 +593,12 @@ async function submitVerification(req, res) {
 
     // Process uploaded files
     if (req.files) {
+      console.log("Files received:", Object.keys(req.files));
+      console.log("idCardFront:", req.files.idCardFront);
+      console.log("idCardBack:", req.files.idCardBack);
+      console.log("criminalRecord:", req.files.criminalRecord);
+      console.log("vehicleImage:", req.files.vehicleImage);
+
       if (req.files.idCardFront && req.files.idCardFront[0]) {
         idCardFrontImage =
           req.files.idCardFront[0].path || req.files.idCardFront[0].secure_url;
@@ -695,6 +701,232 @@ async function submitVerification(req, res) {
     res.status(500).json({
       success: false,
       message: "فشل في تقديم طلب التحقق",
+      error:
+        process.env.NODE_ENV === "development"
+          ? err.message
+          : "Internal server error",
+    });
+  }
+}
+
+// Update verification (for cook and delivery users)
+async function updateVerification(req, res) {
+  await connectDB();
+  try {
+    const userId = req.user._id;
+    const {
+      nationalId,
+      latitude,
+      longitude,
+      vehicleType,
+      licenseNumber,
+      governrate,
+      city,
+      street,
+      buildingNumber,
+    } = req.body;
+
+    // Find user
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: "المستخدم غير موجود" });
+    }
+
+    // Check if user is cook or delivery
+    if (user.role !== "cook" && user.role !== "delivery") {
+      return res.status(400).json({
+        message: "التحقق مطلوب فقط للمطاعم وموظفي التوصيل",
+      });
+    }
+
+    // Find existing verification
+    const existingVerification = await Verification.findOne({ userId });
+    if (!existingVerification) {
+      return res.status(404).json({
+        message: "طلب التحقق غير موجود",
+      });
+    }
+
+    // Check if verification can be updated (only pending or rejected)
+    if (
+      existingVerification.status !== "pending" &&
+      existingVerification.status !== "rejected"
+    ) {
+      return res.status(400).json({
+        message: "لا يمكن تحديث طلب التحقق بعد الموافقة عليه",
+      });
+    }
+
+    // Handle document uploads
+    let idCardFrontImage = existingVerification.idCardFrontImage;
+    let idCardBackImage = existingVerification.idCardBackImage;
+    let criminalRecord = existingVerification.criminalRecord;
+    let vehicleImages = existingVerification.vehicleImage || [];
+
+    // Process uploaded files
+    if (req.files) {
+      if (req.files.idCardFront && req.files.idCardFront[0]) {
+        idCardFrontImage =
+          req.files.idCardFront[0].path || req.files.idCardFront[0].secure_url;
+      }
+      if (req.files.idCardBack && req.files.idCardBack[0]) {
+        idCardBackImage =
+          req.files.idCardBack[0].path || req.files.idCardBack[0].secure_url;
+      }
+      if (req.files.criminalRecord && req.files.criminalRecord[0]) {
+        criminalRecord =
+          req.files.criminalRecord[0].path ||
+          req.files.criminalRecord[0].secure_url;
+      }
+      if (req.files.vehicleImage) {
+        vehicleImages = req.files.vehicleImage.map(
+          (file) => file.path || file.secure_url
+        );
+      }
+    }
+
+    // Validate required documents
+    if (!idCardFrontImage || !idCardBackImage || !criminalRecord) {
+      return res.status(400).json({
+        message:
+          "يجب رفع جميع المستندات المطلوبة (صورة البطاقة الأمامية والخلفية وسجل جنائي)",
+      });
+    }
+
+    // Role-specific validation and data
+    let verificationData = {
+      nationalId: nationalId || existingVerification.nationalId,
+      idCardFrontImage,
+      idCardBackImage,
+      criminalRecord,
+      status: "pending", // Reset to pending when updated
+      submittedAt: new Date(),
+      reviewedAt: null,
+      reviewNotes: null,
+      reviewedBy: null,
+    };
+
+    if (user.role === "cook") {
+      if (latitude === undefined || longitude === undefined) {
+        return res.status(400).json({
+          message: "يجب تحديد الموقع للطباخ (latitude, longitude)",
+        });
+      }
+      if (!governrate || !city || !street || !buildingNumber) {
+        return res.status(400).json({
+          message:
+            "يجب تحديد العنوان للطباخ (المحافظة، المدينة، الشارع، رقم المبنى)",
+        });
+      }
+      verificationData.location = {
+        latitude: Number(latitude),
+        longitude: Number(longitude),
+      };
+      verificationData.address = {
+        governrate,
+        city,
+        street,
+        buildingNumber: Number(buildingNumber),
+      };
+    }
+
+    if (user.role === "delivery") {
+      if (!vehicleType || !licenseNumber) {
+        return res.status(400).json({
+          message: "يجب تحديد نوع المركبة ورقم الرخصة لموظف التوصيل",
+        });
+      }
+      if (vehicleImages.length === 0 || vehicleImages.length > 3) {
+        return res.status(400).json({
+          message: "يجب رفع من 1 إلى 3 صور للمركبة لموظف التوصيل",
+        });
+      }
+      verificationData.vehicleType = vehicleType;
+      verificationData.vehicleImage = vehicleImages;
+      verificationData.licenseNumber = licenseNumber;
+    }
+
+    // Update verification document
+    const updatedVerification = await Verification.findByIdAndUpdate(
+      existingVerification._id,
+      verificationData,
+      { new: true }
+    );
+
+    // Reset user verification status
+    user.isIdentityVerified = false;
+    await user.save();
+
+    res.status(200).json({
+      message: "تم تحديث طلب التحقق بنجاح",
+      verification: updatedVerification,
+    });
+  } catch (err) {
+    console.error("Error updating verification:", err);
+    res.status(500).json({
+      success: false,
+      message: "فشل في تحديث طلب التحقق",
+      error:
+        process.env.NODE_ENV === "development"
+          ? err.message
+          : "Internal server error",
+    });
+  }
+}
+
+// Delete verification (for cook and delivery users)
+async function deleteVerification(req, res) {
+  await connectDB();
+  try {
+    const userId = req.user._id;
+
+    // Find user
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: "المستخدم غير موجود" });
+    }
+
+    // Check if user is cook or delivery
+    if (user.role !== "cook" && user.role !== "delivery") {
+      return res.status(400).json({
+        message: "التحقق مطلوب فقط للمطاعم وموظفي التوصيل",
+      });
+    }
+
+    // Find existing verification
+    const existingVerification = await Verification.findOne({ userId });
+    if (!existingVerification) {
+      return res.status(404).json({
+        message: "طلب التحقق غير موجود",
+      });
+    }
+
+    // Check if verification can be deleted (only pending or rejected)
+    if (
+      existingVerification.status !== "pending" &&
+      existingVerification.status !== "rejected"
+    ) {
+      return res.status(400).json({
+        message: "لا يمكن حذف طلب التحقق بعد الموافقة عليه",
+      });
+    }
+
+    // Delete verification document
+    await Verification.findByIdAndDelete(existingVerification._id);
+
+    // Reset user verification status
+    user.isIdentityVerified = false;
+    user.verificationRef = null;
+    await user.save();
+
+    res.status(200).json({
+      message: "تم حذف طلب التحقق بنجاح",
+    });
+  } catch (err) {
+    console.error("Error deleting verification:", err);
+    res.status(500).json({
+      success: false,
+      message: "فشل في حذف طلب التحقق",
       error:
         process.env.NODE_ENV === "development"
           ? err.message
@@ -866,4 +1098,6 @@ module.exports = {
   getVerificationStatus,
   getPendingVerifications,
   reviewVerification,
+  updateVerification,
+  deleteVerification,
 };
