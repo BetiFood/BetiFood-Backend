@@ -47,6 +47,7 @@ router.post(
     { name: "idCardFront", maxCount: 1 },
     { name: "idCardBack", maxCount: 1 },
     { name: "criminalRecord", maxCount: 1 },
+    { name: "vehicleImage", maxCount: 3 }, // allow up to 3 vehicle images
   ]),
   submitVerification
 );

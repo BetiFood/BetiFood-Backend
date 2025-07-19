@@ -67,6 +67,7 @@ const verificationSchema = new mongoose.Schema(
     },
     // Delivery-specific: vehicleType and licenseNumber
     vehicleType: { type: String },
+    vehicleImage: [{ type: String }], // vehicle images array for delivery
     licenseNumber: { type: String },
   },
   { timestamps: true }

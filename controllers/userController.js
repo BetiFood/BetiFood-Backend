@@ -589,6 +589,7 @@ async function submitVerification(req, res) {
     let idCardFrontImage = null;
     let idCardBackImage = null;
     let criminalRecord = null;
+    let vehicleImages = [];
 
     // Process uploaded files
     if (req.files) {
@@ -604,6 +605,11 @@ async function submitVerification(req, res) {
         criminalRecord =
           req.files.criminalRecord[0].path ||
           req.files.criminalRecord[0].secure_url;
+      }
+      if (req.files.vehicleImage) {
+        vehicleImages = req.files.vehicleImage.map(
+          (file) => file.path || file.secure_url
+        );
       }
     }
 
@@ -657,7 +663,13 @@ async function submitVerification(req, res) {
           message: "يجب تحديد نوع المركبة ورقم الرخصة لموظف التوصيل",
         });
       }
+      if (vehicleImages.length === 0 || vehicleImages.length > 3) {
+        return res.status(400).json({
+          message: "يجب رفع من 1 إلى 3 صور للمركبة لموظف التوصيل",
+        });
+      }
       verificationData.vehicleType = vehicleType;
+      verificationData.vehicleImage = vehicleImages;
       verificationData.licenseNumber = licenseNumber;
     }
 
