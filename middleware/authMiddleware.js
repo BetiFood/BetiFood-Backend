@@ -18,7 +18,8 @@ async function protect(req, res, next) {
     }
 
     req.user = user;
-    req.userRole = user.role; 
+    req.userId = user._id; // Ensure req.userId is always set
+    req.userRole = user.role;
     next();
   } catch (err) {
     return res.status(401).json({ message: "توكن غير صالح" });
@@ -63,7 +64,9 @@ function requireDeliveryRole(req, res, next) {
   if (req.user && req.user.role === "delivery") {
     return next();
   }
-  return res.status(403).json({ message: "يجب أن تكون مندوب توصيل للوصول إلى هذا المورد" });
+  return res
+    .status(403)
+    .json({ message: "يجب أن تكون مندوب توصيل للوصول إلى هذا المورد" });
 }
 
 module.exports = {

@@ -1,7 +1,8 @@
 const express = require("express");
 const router = express.Router();
 const checkRole = require("../middleware/roles");
-const { 
+const validateOrderInput = require("../middleware/validateOrderInput");
+const {
   getAllOrders,
   updateOrder,
   checkout,
@@ -12,10 +13,10 @@ const {
   getMyDeliveryOrders,
   acceptOrderByCook,
   acceptOrderByDelivery,
-  acceptDonationOrderByDelivery,
-  
-} = require('../controllers/orderController');
-const { protect, requireAdminRole } = require('../middleware/authMiddleware');
+  updateDeliveryLocation,
+  checkDeliveryAvailability,
+} = require("../controllers/orderController");
+const { protect, requireAdminRole } = require("../middleware/authMiddleware");
 
 console.log("protect:", typeof protect);
 console.log("requireAdminRole:", typeof requireAdminRole);
@@ -30,27 +31,62 @@ router.get("/available", protect, checkRole("cook"), getAvailableOrdersForCook);
 // جلب طلبات الطباخ الخاصة (التي قام بإنشائها)
 router.get("/my-orders", protect, checkRole("cook"), getMyCookOrders);
 
-// جلب الطلبات المتاحة لمندوب التوصيل (completed وغير مخصصة)
-router.get("/available-delivery", protect, checkRole("delivery"), getAvailableOrdersForDelivery);
+// جلب الطلبات المتاحة لمندوب التوصيل (preparing/completed وغير مخصصة)
+router.get(
+  "/available-delivery",
+  protect,
+  checkRole("delivery"),
+  getAvailableOrdersForDelivery
+);
 
 // جلب طلبات مندوب التوصيل الخاصة (التي قبلها)
-router.get("/my-delivery-orders", protect, checkRole("delivery"), getMyDeliveryOrders);
+router.get(
+  "/my-delivery-orders",
+  protect,
+  checkRole("delivery"),
+  getMyDeliveryOrders
+);
+
+// التحقق من إمكانية قبول طلب جديد لمندوب التوصيل
+router.get(
+  "/delivery/availability",
+  protect,
+  checkRole("delivery"),
+  checkDeliveryAvailability
+);
+
+// تحديث موقع مندوب التوصيل
+router.put(
+  "/delivery/location",
+  protect,
+  checkRole("delivery"),
+  updateDeliveryLocation
+);
 
 // قبول الطلب للشيف
 router.post("/:id/accept-cook", protect, checkRole("cook"), acceptOrderByCook);
 
 // قبول الطلب لمندوب التوصيل
-router.post("/:id/accept-delivery", protect, checkRole("delivery"), acceptOrderByDelivery);
+router.post(
+  "/:id/accept-delivery",
+  protect,
+  checkRole("delivery"),
+  acceptOrderByDelivery
+);
 
 // جلب طلب واحد (متاح لجميع الأدوار مع التحقق من الصلاحيات)
 router.get("/:id", protect, getOrder);
 
-// إنشاء طلب جديد (checkout) - للعملاء فقط
-router.post("/checkout", protect, checkRole("client"), checkout);
+// إنشاء طلب جديد (checkout) - للعملاء فقط مع التحقق من صحة البيانات
+router.post(
+  "/checkout",
+  protect,
+  checkRole("client"),
+  validateOrderInput,
+  checkout
+);
 
 // تحديث الطلب (متاح لجميع الأدوار مع التحقق من الصلاحيات)
 router.put("/:id", protect, updateOrder);
 
-router.post('/accept-donation', protect, acceptDonationOrderByDelivery);
-
-module.exports = router; 
+module.exports = router;

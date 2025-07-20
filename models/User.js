@@ -26,7 +26,13 @@ const userSchema = new mongoose.Schema(
     // isIdentityVerified remains
     isIdentityVerified: { type: Boolean }, // for document verification
     profileImage: { type: String },
-    balance: { type: Number, default: 0 }, // for cook and delivery balances
+    balance: { type: Number, default: 0 }, // for cook balances only
+    // Delivery and cook person location tracking
+    location: {
+      lat: { type: Number },
+      lng: { type: Number },
+      lastUpdated: { type: Date, default: Date.now },
+    },
     rate: {
       type: Number,
       default: 0.0,
@@ -55,9 +61,6 @@ const userSchema = new mongoose.Schema(
         return parseFloat(val);
       },
     },
-    resetPasswordToken: { type: String, default: null },
-    resetPasswordExpires: { type: Date, default: null },
-    // Remove embedded verification object
     createdAt: { type: Date, default: Date.now },
   },
   { timestamps: true }
@@ -72,9 +75,28 @@ userSchema.add({
   },
 });
 
-// Enable getters for the schema and exclude virtual id field
-userSchema.set("toJSON", { getters: true, virtuals: false });
-userSchema.set("toObject", { getters: true, virtuals: false });
+// Custom toJSON/toObject transform to remove sensitive fields
+function userTransform(doc, ret, options) {
+  delete ret.resetPasswordToken;
+  delete ret.resetPasswordExpires;
+  // Remove balance unless explicitly allowed (set by controller)
+  if (!ret._showBalance) {
+    delete ret.balance;
+  }
+  delete ret._showBalance;
+  return ret;
+}
+
+userSchema.set("toJSON", {
+  getters: true,
+  virtuals: false,
+  transform: userTransform,
+});
+userSchema.set("toObject", {
+  getters: true,
+  virtuals: false,
+  transform: userTransform,
+});
 
 // Pre-save middleware to ensure non-cook users have 0.0 for rate and popularity
 userSchema.pre("save", function (next) {

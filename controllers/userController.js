@@ -690,6 +690,18 @@ async function submitVerification(req, res) {
     // Always set user.isIdentityVerified = false when submitting new verification
     user.isIdentityVerified = false;
     user.verificationRef = verification._id;
+    // Sync location to user document if present
+    if (
+      verification.location &&
+      verification.location.latitude !== undefined &&
+      verification.location.longitude !== undefined
+    ) {
+      user.location = {
+        lat: verification.location.latitude,
+        lng: verification.location.longitude,
+        lastUpdated: new Date(),
+      };
+    }
     await user.save();
 
     res.status(200).json({
@@ -855,6 +867,18 @@ async function updateVerification(req, res) {
 
     // Reset user verification status
     user.isIdentityVerified = false;
+    // Sync location to user document if present
+    if (
+      updatedVerification.location &&
+      updatedVerification.location.latitude !== undefined &&
+      updatedVerification.location.longitude !== undefined
+    ) {
+      user.location = {
+        lat: updatedVerification.location.latitude,
+        lng: updatedVerification.location.longitude,
+        lastUpdated: new Date(),
+      };
+    }
     await user.save();
 
     res.status(200).json({

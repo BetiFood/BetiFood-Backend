@@ -7,7 +7,8 @@ const {
   updateCartItem,
   removeFromCart,
   clearCart,
-  getCartStats
+  getCartStats,
+  checkoutFromCart,
 } = require("../controllers/cartController");
 
 // جميع routes تتطلب تسجيل الدخول
@@ -31,4 +32,7 @@ router.delete("/clear", clearCart);
 // إحصائيات الكارت
 router.get("/stats", getCartStats);
 
-module.exports = router; 
+// تحويل الكارت إلى طلب (Checkout)
+router.post("/checkout", checkoutFromCart);
+
+module.exports = router;
