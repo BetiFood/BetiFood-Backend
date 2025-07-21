@@ -100,15 +100,12 @@ const orderSchema = new mongoose.Schema(
     client_address: {
       city: {
         type: String,
-        required: true,
       },
       street: {
         type: String,
-        required: true,
       },
       building_number: {
         type: String,
-        required: true,
       },
     },
     location: {
