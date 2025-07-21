@@ -65,10 +65,10 @@ const formatOrderResponse = (order) => {
       final_amount: order.final_amount,
     },
     payment: {
-      method: translatePaymentMethod(order.payment),
+      method: order.payment, // English only
       status: "pending", // Simplified for now
     },
-    status: translateStatus(order.status),
+    status: order.status, // Return status in English only
     notes: order.notes,
     timestamps: {
       created: formatArabicDate(order.createdAt),
@@ -101,28 +101,6 @@ const formatArabicDate = (date) => {
   const hour = d.getHours().toString().padStart(2, "0");
   const min = d.getMinutes().toString().padStart(2, "0");
   return `${day} ${month} ${year} - ${hour}:${min}`;
-};
-
-// Helper function to translate payment method
-const translatePaymentMethod = (method) => {
-  const methods = {
-    cash: "نقدي",
-    online: "إلكتروني",
-  };
-  return methods[method] || method;
-};
-
-// Helper function to translate status
-const translateStatus = (status) => {
-  const statuses = {
-    pending: "في الانتظار",
-    preparing: "قيد التحضير",
-    completed: "مكتمل",
-    delivering: "قيد التوصيل",
-    delivered: "تم التوصيل",
-    cancelled: "ملغي",
-  };
-  return statuses[status] || status;
 };
 
 // جلب جميع الطلبات حسب الدور
