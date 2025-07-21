@@ -218,23 +218,45 @@ const getMyCookOrders = asyncHandler(async (req, res) => {
     "subOrders.cook_id": new mongoose.Types.ObjectId(req.userId),
   };
 
-  const populateOptions = [
-    { path: "subOrders.cook_id", select: "name email" },
-    { path: "subOrders.delivery_id", select: "name email" },
-    { path: "client_id", select: "name email" },
-  ];
+  // Only populate the cook_id for subOrders to minimize data
+  const populateOptions = [{ path: "subOrders.cook_id", select: "name email" }];
 
   const orders = await Order.find(filter)
     .populate(populateOptions)
     .sort({ createdAt: -1 });
 
-  const formattedOrders = orders.map((order) => formatOrderResponse(order));
+  // For each order, return only the sub-orders belonging to this cook, and the main order ID
+  const cookOrders = orders.map((order) => {
+    const mySubOrders = order.subOrders.filter((subOrder) => {
+      const cookId =
+        subOrder.cook_id && subOrder.cook_id._id
+          ? subOrder.cook_id._id
+          : subOrder.cook_id;
+      return cookId.toString() === req.userId.toString();
+    });
+    return {
+      order_id: order._id,
+      subOrders: mySubOrders.map((subOrder) => ({
+        sub_order_id: subOrder._id,
+        meals: subOrder.meals, // You can further filter meal fields if needed
+        delivery_status: subOrder.delivery_status,
+        status: subOrder.status,
+        delivery_id: subOrder.delivery_id,
+        delivery_name: subOrder.delivery_name,
+        delivery_fee: subOrder.delivery_fee,
+        delivery_distance_km: subOrder.delivery_distance_km,
+        picked_up_at: subOrder.picked_up_at,
+        delivered_at: subOrder.delivered_at,
+        // Add any other fields you want the cook to see
+      })),
+    };
+  });
 
   res.status(200).json({
     success: true,
     message: "تم جلب طلباتك بنجاح",
-    orders: formattedOrders,
-    count: formattedOrders.length,
+    orders: cookOrders,
+    count: cookOrders.length,
   });
 });
 
