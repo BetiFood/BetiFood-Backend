@@ -10,4 +10,14 @@ router.post(
   paymentController.createPaymentIntent
 );
 
+// Stripe webhook endpoint (must use raw body for Stripe signature verification)
+router.post(
+  "/webhook",
+  express.raw({ type: "application/json" }),
+  paymentController.stripeWebhook
+);
+
+// GET endpoint for checkout status
+router.get("/checkout/:checkoutId", paymentController.getCheckoutStatus);
+
 module.exports = router;

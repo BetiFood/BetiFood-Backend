@@ -1,6 +1,6 @@
 const mongoose = require("mongoose");
 
-// Meal schema for embedded meals in sub-orders
+// Meal schema for embedded meals in orders (single cook per order)
 const mealSchema = new mongoose.Schema(
   {
     mealId: {
@@ -33,52 +33,6 @@ const mealSchema = new mongoose.Schema(
     },
   },
   { _id: false }
-);
-
-// Sub-order schema for individual cook orders
-const subOrderSchema = new mongoose.Schema(
-  {
-    cook_id: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      required: true,
-    },
-    cook_name: {
-      type: String,
-      required: true,
-    },
-    meals: [mealSchema], // Embedded meals for this cook
-    delivery_id: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-    },
-    delivery_name: {
-      type: String,
-    },
-    delivery_status: {
-      type: String,
-      enum: ["pending", "preparing", "picked_up", "delivered"],
-      default: "pending",
-    },
-    delivery_fee: {
-      type: Number,
-      default: 0,
-      min: [0, "رسوم التوصيل لا يمكن أن تكون سالبة"],
-    },
-    delivery_distance_km: {
-      type: Number,
-      default: 0,
-      min: [0, "المسافة لا يمكن أن تكون سالبة"],
-    },
-    picked_up_at: { type: Date },
-    delivered_at: { type: Date },
-    status: {
-      type: String,
-      enum: ["pending", "preparing", "completed", "cancelled"],
-      default: "pending",
-    },
-  },
-  { _id: true }
 );
 
 // Main order schema
@@ -123,8 +77,47 @@ const orderSchema = new mongoose.Schema(
       },
     },
 
-    // Sub-orders array
-    subOrders: [subOrderSchema],
+    // Cook information (single cook per order)
+    cook_id: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
+    cook_name: {
+      type: String,
+      required: true,
+    },
+
+    // Meals array (all meals from this cook)
+    meals: [mealSchema],
+
+    // Delivery info (optional, can be expanded as needed)
+    delivery: {
+      id: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+      name: {
+        type: String,
+      },
+      status: {
+        type: String,
+        enum: ["pending", "accepted"],
+        default: "pending",
+      },
+    },
+    delivery_fee: {
+      type: Number,
+      default: 0,
+      min: [0, "رسوم التوصيل لا يمكن أن تكون سالبة"],
+    },
+    delivery_distance_km: {
+      type: Number,
+      default: 0,
+      min: [0, "المسافة لا يمكن أن تكون سالبة"],
+    },
+    picked_up_at: { type: Date },
+    delivered_at: { type: Date },
 
     // Payment information
     payment: {
@@ -161,6 +154,7 @@ const orderSchema = new mongoose.Schema(
         "completed",
         "delivering",
         "delivered",
+        "confirmed",
         "cancelled",
       ],
       default: "pending",
@@ -171,10 +165,6 @@ const orderSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "Charity",
     },
-    isDonation: {
-      type: Boolean,
-      default: false,
-    },
     donationId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Donation",
@@ -183,6 +173,13 @@ const orderSchema = new mongoose.Schema(
     // Additional fields
     notes: { type: String },
     estimated_delivery_time: { type: Date },
+
+    // Checkout ID to link orders from the same client checkout
+    checkoutId: {
+      type: String,
+      required: true,
+      index: true,
+    },
   },
   { timestamps: true }
 );
@@ -191,23 +188,12 @@ const orderSchema = new mongoose.Schema(
 orderSchema.pre("save", function (next) {
   try {
     let totalMealsPrice = 0;
-
-    // Calculate total meals price from all sub-orders
-    for (const subOrder of this.subOrders) {
-      for (const meal of subOrder.meals) {
-        totalMealsPrice += meal.price * meal.quantity;
-      }
+    for (const meal of this.meals) {
+      totalMealsPrice += meal.price * meal.quantity;
     }
-
-    // Calculate total delivery fee from all sub-orders
-    this.total_delivery_fee = this.subOrders.reduce((total, subOrder) => {
-      return total + (subOrder.delivery_fee || 0);
-    }, 0);
-
-    // Calculate final amount: meals + tax - discount + delivery fees
+    this.total_delivery_fee = this.delivery_fee || 0;
     this.final_amount =
       totalMealsPrice + this.tax - this.discount + this.total_delivery_fee;
-
     next();
   } catch (error) {
     next(error);

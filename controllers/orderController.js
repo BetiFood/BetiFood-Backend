@@ -5,6 +5,9 @@ const User = require("../models/User");
 const asyncHandler = require("../utils/asyncHandler");
 const { ApiResponse } = require("../utils/response");
 const mongoose = require("mongoose");
+const Checkout = require("../models/Checkout");
+const Stripe = require("stripe");
+const stripe = Stripe(process.env.Stripe_Secret_key);
 
 // Helper function to calculate distance between two points using Haversine formula
 const calculateDistance = (lat1, lng1, lat2, lng2) => {
@@ -21,10 +24,11 @@ const calculateDistance = (lat1, lng1, lat2, lng2) => {
   return R * c; // Distance in kilometers
 };
 
-// Helper function to format order response with sub-orders
+// Helper function to format order response for the new schema
 const formatOrderResponse = (order) => {
   return {
     order_id: order._id,
+    checkout_id: order.checkoutId,
     client: {
       id: order.client_id?._id || order.client_id,
       name: order.client_name,
@@ -33,31 +37,28 @@ const formatOrderResponse = (order) => {
       address: order.client_address,
       location: order.location,
     },
-    subOrders: order.subOrders.map((subOrder) => ({
-      sub_order_id: subOrder._id,
-      cook: {
-        id: subOrder.cook_id?._id || subOrder.cook_id,
-        name: subOrder.cook_name,
-      },
-      meals: subOrder.meals.map((meal) => ({
-        id: meal.mealId,
-        name: meal.mealName,
-        cookId: meal.cookId,
-        cookName: meal.cookName,
-        unit_price: meal.price,
-        quantity: meal.quantity,
-        total_price: meal.price * meal.quantity,
-      })),
-      delivery: {
-        id: subOrder.delivery_id?._id || subOrder.delivery_id,
-        name: subOrder.delivery_name,
-        status: subOrder.delivery_status,
-        fee: subOrder.delivery_fee,
-        distance_km: subOrder.delivery_distance_km,
-        picked_up_at: subOrder.picked_up_at,
-        delivered_at: subOrder.delivered_at,
-      },
+    cook: {
+      id: order.cook_id?._id || order.cook_id,
+      name: order.cook_name,
+    },
+    meals: order.meals.map((meal) => ({
+      id: meal.mealId,
+      name: meal.mealName,
+      cookId: meal.cookId,
+      cookName: meal.cookName,
+      unit_price: meal.price,
+      quantity: meal.quantity,
+      total_price: meal.price * meal.quantity,
     })),
+    delivery: {
+      id: order.delivery_id?._id || order.delivery_id,
+      name: order.delivery_name,
+      status: order.delivery_status,
+      fee: order.delivery_fee,
+      distance_km: order.delivery_distance_km,
+      picked_up_at: order.picked_up_at,
+      delivered_at: order.delivered_at,
+    },
     pricing: {
       total_delivery_fee: order.total_delivery_fee,
       tax: order.tax,
@@ -107,8 +108,8 @@ const formatArabicDate = (date) => {
 const getAllOrders = asyncHandler(async (req, res) => {
   let filter = {};
   let populateOptions = [
-    { path: "subOrders.cook_id", select: "name email" },
-    { path: "subOrders.delivery_id", select: "name email" },
+    { path: "cook_id", select: "name email" },
+    { path: "delivery_id", select: "name email" },
     { path: "client_id", select: "name email" },
   ];
 
@@ -118,9 +119,7 @@ const getAllOrders = asyncHandler(async (req, res) => {
       filter = { client_id: new mongoose.Types.ObjectId(req.userId) };
       break;
     case "cook":
-      filter = {
-        "subOrders.cook_id": new mongoose.Types.ObjectId(req.userId),
-      };
+      filter = { cook_id: new mongoose.Types.ObjectId(req.userId) };
       break;
     case "delivery":
       if (!req.user.isIdentityVerified) {
@@ -131,7 +130,7 @@ const getAllOrders = asyncHandler(async (req, res) => {
       }
       filter = {
         $or: [
-          { "subOrders.delivery_id": new mongoose.Types.ObjectId(req.userId) },
+          { delivery_id: new mongoose.Types.ObjectId(req.userId) },
           { status: { $in: ["completed", "delivering"] } },
         ],
       };
@@ -164,15 +163,12 @@ const getAllOrders = asyncHandler(async (req, res) => {
 const getAvailableOrdersForCook = asyncHandler(async (req, res) => {
   const filter = {
     status: "pending",
-    "subOrders.cook_id": new mongoose.Types.ObjectId(req.userId),
-    $or: [
-      { "subOrders.delivery_id": { $exists: false } },
-      { "subOrders.delivery_id": null },
-    ],
+    cook_id: new mongoose.Types.ObjectId(req.userId),
+    $or: [{ delivery_id: { $exists: false } }, { delivery_id: null }],
   };
 
   const populateOptions = [
-    { path: "subOrders.cook_id", select: "name email" },
+    { path: "cook_id", select: "name email" },
     { path: "client_id", select: "name email" },
   ];
 
@@ -193,42 +189,17 @@ const getAvailableOrdersForCook = asyncHandler(async (req, res) => {
 // جلب طلبات الطباخ الخاصة
 const getMyCookOrders = asyncHandler(async (req, res) => {
   const filter = {
-    "subOrders.cook_id": new mongoose.Types.ObjectId(req.userId),
+    cook_id: new mongoose.Types.ObjectId(req.userId),
   };
 
-  // Only populate the cook_id for subOrders to minimize data
-  const populateOptions = [{ path: "subOrders.cook_id", select: "name email" }];
+  const populateOptions = [{ path: "cook_id", select: "name email" }];
 
   const orders = await Order.find(filter)
     .populate(populateOptions)
     .sort({ createdAt: -1 });
 
-  // For each order, return only the sub-orders belonging to this cook, and the main order ID
-  const cookOrders = orders.map((order) => {
-    const mySubOrders = order.subOrders.filter((subOrder) => {
-      const cookId =
-        subOrder.cook_id && subOrder.cook_id._id
-          ? subOrder.cook_id._id
-          : subOrder.cook_id;
-      return cookId.toString() === req.userId.toString();
-    });
-    return {
-      order_id: order._id,
-      subOrders: mySubOrders.map((subOrder) => ({
-        sub_order_id: subOrder._id,
-        meals: subOrder.meals, // You can further filter meal fields if needed
-        delivery_status: subOrder.delivery_status,
-        status: subOrder.status,
-        delivery_id: subOrder.delivery_id,
-        delivery_name: subOrder.delivery_name,
-        delivery_fee: subOrder.delivery_fee,
-        delivery_distance_km: subOrder.delivery_distance_km,
-        picked_up_at: subOrder.picked_up_at,
-        delivered_at: subOrder.delivered_at,
-        // Add any other fields you want the cook to see
-      })),
-    };
-  });
+  // For each order, return only the order info (no sub-orders)
+  const cookOrders = orders.map((order) => formatOrderResponse(order));
 
   res.status(200).json({
     success: true,
@@ -240,72 +211,32 @@ const getMyCookOrders = asyncHandler(async (req, res) => {
 
 // جلب الطلبات المتاحة لمندوب التوصيل مع فلترة حسب الموقع
 const getAvailableOrdersForDelivery = asyncHandler(async (req, res) => {
-  // التحقق من توثيق هوية مندوب التوصيل
   if (!req.user.isIdentityVerified) {
     return res.status(403).json({
       success: false,
       message: "لا يمكنك رؤية الطلبات حتى يتم توثيق هويتك من الإدارة.",
     });
   }
-
-  // التحقق من وجود موقع مندوب التوصيل
   if (!req.user.location || !req.user.location.lat || !req.user.location.lng) {
     return res.status(400).json({
       success: false,
       message: "يجب تحديث موقعك أولاً لرؤية الطلبات المتاحة.",
     });
   }
-
   const deliveryLocation = req.user.location;
-  const maxDistance = 50; // أقصى مسافة بالكيلومترات
-  const urgentDistance = 5; // مسافة الطلبات العاجلة (5 كم)
-  const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000); // 10 دقائق مضت
+  const maxDistance = 3; // 3 km
 
-  // التحقق من الطلبات الحالية لمندوب التوصيل
-  const currentOrders = await Order.find({
-    "subOrders.delivery_id": new mongoose.Types.ObjectId(req.userId),
-    status: { $in: ["preparing", "completed", "delivering"] },
-  });
-
-  const hasActiveOrder = currentOrders.length > 0;
-  const lastAcceptedOrder =
-    currentOrders.length > 0
-      ? currentOrders.sort(
-          (a, b) => new Date(b.updatedAt) - new Date(a.updatedAt)
-        )[0]
-      : null;
-
-  // إذا كان لديه طلب نشط، تحقق من الوقت
-  let canAcceptNewOrder = true;
-  let timeUntilNextOrder = null;
-
-  if (hasActiveOrder && lastAcceptedOrder) {
-    const timeSinceLastOrder =
-      Date.now() - new Date(lastAcceptedOrder.updatedAt).getTime();
-    const tenMinutesInMs = 10 * 60 * 1000;
-
-    if (timeSinceLastOrder < tenMinutesInMs) {
-      canAcceptNewOrder = false;
-      timeUntilNextOrder = Math.ceil(
-        (tenMinutesInMs - timeSinceLastOrder) / 60000
-      ); // بالدقائق
-    }
-  }
-
-  // جلب الطلبات المتاحة (preparing أو completed)
+  // Only show orders where cook has accepted (preparing) and is verified
   const filter = {
     status: { $in: ["preparing", "completed"] },
-    $or: [
-      { "subOrders.delivery_id": { $exists: false } },
-      { "subOrders.delivery_id": null },
-    ],
+    $or: [{ delivery_id: { $exists: false } }, { delivery_id: null }],
   };
 
   const populateOptions = [
     {
-      path: "subOrders.cook_id",
-      select: "name email location verificationRef",
-      populate: { path: "verificationRef", select: "location" },
+      path: "cook_id",
+      select: "name email verificationRef",
+      populate: { path: "verificationRef", select: "location status" },
     },
     { path: "client_id", select: "name email phone" },
   ];
@@ -314,218 +245,70 @@ const getAvailableOrdersForDelivery = asyncHandler(async (req, res) => {
     .populate(populateOptions)
     .sort({ createdAt: -1 });
 
-  // فلترة الطلبات حسب المسافة من مندوب التوصيل
   const availableOrders = [];
-  const urgentOrders = []; // الطلبات العاجلة (10+ دقائق)
-
   for (const order of orders) {
-    const orderWithDistance = {
-      ...order.toObject(),
-      subOrders: order.subOrders.map((subOrder) => {
-        const cook = subOrder.cook_id;
-        // Use cook.location if present, otherwise use cook.verificationRef.location
-        const cookLocation =
-          cook && cook.location && cook.location.lat && cook.location.lng
-            ? cook.location
-            : cook.verificationRef &&
-              cook.verificationRef.location &&
-              cook.verificationRef.location.lat &&
-              cook.verificationRef.location.lng
-            ? cook.verificationRef.location
-            : null;
-        if (cookLocation && cookLocation.lat && cookLocation.lng) {
-          const distance = calculateDistance(
-            deliveryLocation.lat,
-            deliveryLocation.lng,
-            cookLocation.lat,
-            cookLocation.lng
-          );
-
-          return {
-            ...subOrder.toObject(),
-            distance_from_delivery: distance,
-            is_within_range: distance <= maxDistance,
-            is_urgent_distance: distance <= urgentDistance,
-          };
-        }
-        return {
-          ...subOrder.toObject(),
-          distance_from_delivery: null,
-          is_within_range: false,
-          is_urgent_distance: false,
-        };
-      }),
-    };
-
-    // إضافة الطلب إذا كان هناك طباخ واحد على الأقل ضمن النطاق
-    const hasCookInRange = orderWithDistance.subOrders.some(
-      (subOrder) => subOrder.is_within_range
-    );
-
-    if (hasCookInRange) {
-      // تحقق من وقت الطلب
-      const orderAge = Date.now() - new Date(order.createdAt).getTime();
-      const isUrgentOrder = orderAge > 10 * 60 * 1000; // أكثر من 10 دقائق
-
-      if (isUrgentOrder) {
-        // للطلبات العاجلة، تحقق من المسافة القريبة
-        const hasUrgentDistance = orderWithDistance.subOrders.some(
-          (subOrder) => subOrder.is_urgent_distance
-        );
-
-        if (hasUrgentDistance) {
-          urgentOrders.push({
-            ...orderWithDistance,
-            is_urgent: true,
-            waiting_time_minutes: Math.floor(orderAge / 60000),
-          });
-        }
-      } else {
-        availableOrders.push(orderWithDistance);
+    const cook = order.cook_id;
+    // Only allow if cook is verified and has a location
+    if (
+      cook &&
+      cook.verificationRef &&
+      cook.verificationRef.status === "approved" &&
+      cook.verificationRef.location &&
+      typeof cook.verificationRef.location.latitude === "number" &&
+      typeof cook.verificationRef.location.longitude === "number"
+    ) {
+      const cookLat = cook.verificationRef.location.latitude;
+      const cookLng = cook.verificationRef.location.longitude;
+      const deliveryLat = req.user.location.lat;
+      const deliveryLng = req.user.location.lng;
+      const distance = calculateDistance(
+        deliveryLat,
+        deliveryLng,
+        cookLat,
+        cookLng
+      );
+      if (distance <= maxDistance) {
+        const formatted = formatOrderResponse(order);
+        formatted.distance_from_delivery = distance;
+        availableOrders.push(formatted);
       }
     }
   }
 
-  // ترتيب الطلبات حسب المسافة (الأقرب أولاً)
-  availableOrders.sort((a, b) => {
-    const minDistanceA = Math.min(
-      ...a.subOrders
-        .filter((so) => so.is_within_range)
-        .map((so) => so.distance_from_delivery)
-    );
-    const minDistanceB = Math.min(
-      ...b.subOrders
-        .filter((so) => so.is_within_range)
-        .map((so) => so.distance_from_delivery)
-    );
-    return minDistanceA - minDistanceB;
-  });
-
-  // ترتيب الطلبات العاجلة حسب المسافة (الأقرب أولاً)
-  urgentOrders.sort((a, b) => {
-    const minDistanceA = Math.min(
-      ...a.subOrders
-        .filter((so) => so.is_urgent_distance)
-        .map((so) => so.distance_from_delivery)
-    );
-    const minDistanceB = Math.min(
-      ...b.subOrders
-        .filter((so) => so.is_urgent_distance)
-        .map((so) => so.distance_from_delivery)
-    );
-    return minDistanceA - minDistanceB;
-  });
-
-  // دمج الطلبات العادية والعاجلة
-  let finalOrders = [];
-  let showUrgentNotification = false;
-
-  if (canAcceptNewOrder) {
-    finalOrders = [...availableOrders, ...urgentOrders];
-  } else if (urgentOrders.length > 0) {
-    // إذا كان لا يمكن قبول طلبات عادية، اعرض الطلبات العاجلة فقط
-    finalOrders = urgentOrders;
-    showUrgentNotification = true;
-  }
-
-  const formattedOrders = finalOrders.map((order) => {
-    const formatted = formatOrderResponse(order);
-    // إضافة معلومات المسافة للاستجابة
-    formatted.subOrders = formatted.subOrders.map((subOrder, index) => ({
-      ...subOrder,
-      distance_from_delivery: order.subOrders[index].distance_from_delivery,
-      is_within_range: order.subOrders[index].is_within_range,
-      is_urgent_distance: order.subOrders[index].is_urgent_distance,
-    }));
-
-    // إضافة معلومات الطلب العاجل
-    if (order.is_urgent) {
-      formatted.is_urgent = true;
-      formatted.waiting_time_minutes = order.waiting_time_minutes;
-    }
-
-    return formatted;
-  });
-
-  // تحضير رسالة الاستجابة
-  let message = `تم جلب ${formattedOrders.length} طلب متاح للتوصيل بنجاح`;
-  let notification = null;
-
-  if (!canAcceptNewOrder && !showUrgentNotification) {
-    message = `لديك طلب نشط. يمكنك قبول طلب جديد بعد ${timeUntilNextOrder} دقيقة.`;
-    notification = {
-      type: "wait",
-      message: `انتظر ${timeUntilNextOrder} دقيقة قبل قبول طلب جديد`,
-      time_remaining_minutes: timeUntilNextOrder,
-    };
-  } else if (!canAcceptNewOrder && showUrgentNotification) {
-    message = `لديك طلب نشط، لكن هناك ${urgentOrders.length} طلب عاجل قريب منك يمكنك قبوله!`;
-    notification = {
-      type: "urgent_available",
-      message: `يمكنك قبول طلب عاجل قريب منك (${urgentOrders.length} طلب)`,
-      urgent_orders_count: urgentOrders.length,
-      time_until_normal_order_minutes: timeUntilNextOrder,
-    };
-  } else if (hasActiveOrder) {
-    message = `تم جلب ${formattedOrders.length} طلب متاح للتوصيل. يمكنك قبول طلب جديد الآن!`;
-    notification = {
-      type: "can_accept",
-      message: "يمكنك قبول طلب جديد الآن",
-      time_since_last_order_minutes: Math.floor(
-        (Date.now() - new Date(lastAcceptedOrder.updatedAt).getTime()) / 60000
-      ),
-    };
-  }
+  // Sort by closest first
+  availableOrders.sort(
+    (a, b) => a.distance_from_delivery - b.distance_from_delivery
+  );
 
   res.status(200).json({
     success: true,
-    message: message,
-    orders: formattedOrders,
-    count: formattedOrders.length,
-    delivery_location: {
-      lat: deliveryLocation.lat,
-      lng: deliveryLocation.lng,
-      last_updated: deliveryLocation.lastUpdated,
-    },
+    message: `تم جلب ${availableOrders.length} طلب متاح للتوصيل بنجاح`,
+    orders: availableOrders,
+    count: availableOrders.length,
+    delivery_location: req.user.location,
     max_distance_km: maxDistance,
-    urgent_distance_km: urgentDistance,
-    delivery_status: {
-      has_active_order: hasActiveOrder,
-      can_accept_new_order: canAcceptNewOrder,
-      time_until_next_order_minutes: timeUntilNextOrder,
-      active_orders_count: currentOrders.length,
-    },
-    notification: notification,
-    urgent_orders_count: urgentOrders.length,
-    normal_orders_count: availableOrders.length,
   });
 });
 
 // جلب طلبات مندوب التوصيل الخاصة
 const getMyDeliveryOrders = asyncHandler(async (req, res) => {
-  // التحقق من توثيق هوية مندوب التوصيل
   if (!req.user.isIdentityVerified) {
     return res.status(403).json({
       success: false,
       message: "لا يمكنك رؤية الطلبات حتى يتم توثيق هويتك من الإدارة.",
     });
   }
-
   const filter = {
-    "subOrders.delivery_id": new mongoose.Types.ObjectId(req.userId),
+    delivery_id: new mongoose.Types.ObjectId(req.userId),
   };
-
   const populateOptions = [
-    { path: "subOrders.cook_id", select: "name email location" },
+    { path: "cook_id", select: "name email location" },
     { path: "client_id", select: "name email phone" },
   ];
-
   const orders = await Order.find(filter)
     .populate(populateOptions)
     .sort({ createdAt: -1 });
-
   const formattedOrders = orders.map((order) => formatOrderResponse(order));
-
   res.status(200).json({
     success: true,
     message: `تم جلب ${formattedOrders.length} طلب من طلباتك بنجاح`,
@@ -534,9 +317,9 @@ const getMyDeliveryOrders = asyncHandler(async (req, res) => {
   });
 });
 
-// إنشاء طلب جديد (checkout) - يدعم sub-orders
-const checkout = asyncHandler(async (req, res) => {
-  const {
+// Shared function to create orders and checkout
+async function createOrdersAndCheckout(
+  {
     client_name,
     client_phone,
     client_address,
@@ -545,9 +328,10 @@ const checkout = asyncHandler(async (req, res) => {
     payment = "cash",
     tax = 0,
     discount = 0,
-    sub_orders, // Array of sub-orders
-  } = req.body;
-
+    meals,
+  },
+  user
+) {
   // Normalize payment method (accept Arabic and English)
   let normalizedPayment = payment;
   if (payment === "نقدي" || payment === "cash") {
@@ -555,10 +339,10 @@ const checkout = asyncHandler(async (req, res) => {
   } else if (payment === "الكتروني" || payment === "online") {
     normalizedPayment = "online";
   } else {
-    return res.status(400).json({
+    return {
       success: false,
       message: "طريقة الدفع غير مدعومة نقدي او الكتروني",
-    });
+    };
   }
 
   // Validate required fields
@@ -567,14 +351,14 @@ const checkout = asyncHandler(async (req, res) => {
     !client_phone ||
     !client_address ||
     !location ||
-    !sub_orders ||
-    !Array.isArray(sub_orders)
+    !meals ||
+    !Array.isArray(meals)
   ) {
-    return res.status(400).json({
+    return {
       success: false,
       message:
-        "يجب توفير جميع البيانات المطلوبة: client_name, client_phone, client_address, location, sub_orders",
-    });
+        "يجب توفير جميع البيانات المطلوبة: client_name, client_phone, client_address, location, meals",
+    };
   }
 
   // Validate client_address structure
@@ -583,202 +367,235 @@ const checkout = asyncHandler(async (req, res) => {
     !client_address.street ||
     !client_address.building_number
   ) {
-    return res.status(400).json({
+    return {
       success: false,
       message: "يجب توفير city, street, building_number في client_address",
-    });
+    };
   }
 
   // Validate location structure
   if (typeof location.lat !== "number" || typeof location.lng !== "number") {
-    return res.status(400).json({
+    return {
       success: false,
       message: "يجب توفير lat و lng كأرقام في location",
-    });
+    };
   }
 
-  // Validate sub_orders
-  if (sub_orders.length === 0) {
-    return res.status(400).json({
+  if (meals.length === 0) {
+    return {
       success: false,
-      message: "يجب توفير sub_orders واحدة على الأقل",
+      message: "يجب توفير وجبة واحدة على الأقل في الطلب",
+    };
+  }
+
+  // Group meals by cook_id
+  const mealsByCook = {};
+  for (const meal of meals) {
+    if (!meal.meal_id || !meal.quantity || meal.quantity < 1) {
+      return {
+        success: false,
+        message: "كل وجبة يجب أن تحتوي على meal_id و quantity >= 1",
+      };
+    }
+    // Fetch meal info
+    const mealDoc = await Meal.findById(meal.meal_id);
+    if (!mealDoc) {
+      return {
+        success: false,
+        message: `الوجبة غير موجودة: ${meal.meal_id}`,
+      };
+    }
+    // Fetch cook info from mealDoc.cook.cookId
+    if (!mealDoc.cook || !mealDoc.cook.cookId) {
+      return {
+        success: false,
+        message: `الوجبة ${mealDoc.name} لا تحتوي على طباخ معرف`,
+      };
+    }
+    const cookId = mealDoc.cook.cookId.toString();
+    if (!mealsByCook[cookId]) mealsByCook[cookId] = [];
+    mealsByCook[cookId].push({
+      mealDoc,
+      quantity: meal.quantity,
     });
   }
 
-  const validatedSubOrders = [];
+  // Generate a unique checkoutId (ObjectId as string)
+  const checkoutId = new mongoose.Types.ObjectId().toString();
 
-  // Validate each sub-order
-  for (const subOrder of sub_orders) {
-    if (
-      !subOrder.cook_id ||
-      !subOrder.meals ||
-      !Array.isArray(subOrder.meals) ||
-      subOrder.meals.length === 0
-    ) {
-      return res.status(400).json({
-        success: false,
-        message: "كل sub-order يجب أن يحتوي على cook_id و meals array",
-      });
-    }
+  let totalAmount = 0;
+  let totalTax = 0;
+  let totalDiscount = 0;
+  let totalDeliveryFee = 0;
+  const orderIds = [];
+  const createdOrders = [];
 
-    // Validate cook exists
-    const cook = await User.findById(subOrder.cook_id);
+  // For each cook, create an order
+  for (const cookId in mealsByCook) {
+    // Use cook name from the first meal in the group
+    const cookName = mealsByCook[cookId][0].mealDoc.cook.name;
+    const cook = await User.findById(cookId);
     if (!cook || cook.role !== "cook") {
-      return res.status(400).json({
+      return {
         success: false,
-        message: `الطباخ غير موجود أو غير صالح: ${subOrder.cook_id}`,
-      });
+        message: `الطباخ غير موجود أو غير صالح: ${cookId}`,
+      };
     }
-
-    // Validate meals in this sub-order
-    const validatedMeals = [];
-    for (const meal of subOrder.meals) {
-      if (!meal.meal_id || !meal.quantity || meal.quantity < 1) {
-        return res.status(400).json({
-          success: false,
-          message: "كل وجبة يجب أن تحتوي على meal_id و quantity >= 1",
-        });
-      }
-
-      // Validate meal exists and belongs to this cook
-      const mealDoc = await Meal.findById(meal.meal_id);
-      if (!mealDoc) {
-        return res.status(400).json({
-          success: false,
-          message: `الوجبة غير موجودة: ${meal.meal_id}`,
-        });
-      }
-
-      if (mealDoc.cookId.toString() !== subOrder.cook_id.toString()) {
-        return res.status(400).json({
-          success: false,
-          message: `الوجبة ${mealDoc.name} لا تخص الطباخ المحدد`,
-        });
-      }
-
-      // Check meal availability
-      if (mealDoc.quantity < meal.quantity) {
-        return res.status(400).json({
+    const cookMeals = mealsByCook[cookId];
+    let subtotal = 0;
+    const orderMeals = [];
+    for (const { mealDoc, quantity } of cookMeals) {
+      if (mealDoc.quantity < quantity) {
+        return {
           success: false,
           message: `الكمية المطلوبة غير متوفرة للوجبة: ${mealDoc.name}`,
-        });
+        };
       }
-
-      validatedMeals.push({
-        mealId: meal.meal_id,
+      orderMeals.push({
+        mealId: mealDoc._id,
         mealName: mealDoc.name,
-        cookId: subOrder.cook_id,
-        cookName: cook.name,
-        quantity: meal.quantity,
+        cookId: cook._id,
+        cookName: cookName,
+        quantity,
         price: mealDoc.price,
       });
+      subtotal += mealDoc.price * quantity;
     }
+    // Delivery fee and distance can be set to 0 or calculated if needed
+    const delivery_fee = 0;
+    const delivery_distance_km = 0;
+    // Calculate order total (tax/discount split equally or as needed)
+    const orderTax = tax ? tax / Object.keys(mealsByCook).length : 0;
+    const orderDiscount = discount
+      ? discount / Object.keys(mealsByCook).length
+      : 0;
+    const final_amount = subtotal + delivery_fee + orderTax - orderDiscount;
+    // Create the order
+    const order = await Order.create({
+      client_id: user._id || user.userId,
+      client_name,
+      client_phone,
+      client_address,
+      location,
+      cook_id: cook._id,
+      cook_name: cookName,
+      meals: orderMeals,
+      payment: normalizedPayment,
+      tax: orderTax,
+      discount: orderDiscount,
+      notes,
+      status: "pending",
+      delivery_fee,
+      delivery_distance_km,
+      checkoutId,
+    });
+    orderIds.push(order._id);
+    createdOrders.push(order);
+    totalAmount += final_amount;
+    totalTax += orderTax;
+    totalDiscount += orderDiscount;
+    totalDeliveryFee += delivery_fee;
+    // Update meal quantities
+    for (const { mealDoc, quantity } of cookMeals) {
+      await Meal.findByIdAndUpdate(mealDoc._id, {
+        $inc: { quantity: -quantity },
+      });
+    }
+  }
 
-    // Validate delivery person if provided
-    let deliveryPerson = null;
-    if (subOrder.delivery_person_id) {
-      deliveryPerson = await User.findById(subOrder.delivery_person_id);
-      if (!deliveryPerson || deliveryPerson.role !== "delivery") {
-        return res.status(400).json({
-          success: false,
-          message: `مندوب التوصيل غير موجود أو غير صالح: ${subOrder.delivery_person_id}`,
-        });
+  // Create Checkout document
+  let checkoutDoc = null;
+  let stripeClientSecret = null;
+  let stripePaymentIntentId = null;
+
+  if (normalizedPayment === "online") {
+    // Stripe expects amount in cents
+    const amountInCents = Math.round(totalAmount * 100);
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: amountInCents,
+      currency: "usd",
+      metadata: { checkoutId },
+    });
+    stripeClientSecret = paymentIntent.client_secret;
+    stripePaymentIntentId = paymentIntent.id;
+    checkoutDoc = await Checkout.create({
+      checkoutId,
+      client_id: user._id || user.userId,
+      orders: orderIds,
+      totalAmount,
+      paymentMethod: normalizedPayment,
+      paymentStatus: "pending",
+      stripePaymentIntentId,
+      stripeClientSecret,
+    });
+  } else {
+    checkoutDoc = await Checkout.create({
+      checkoutId,
+      client_id: user._id || user.userId,
+      orders: orderIds,
+      totalAmount,
+      paymentMethod: normalizedPayment,
+      paymentStatus: "pending",
+    });
+  }
+
+  // Populate orders with full details
+  await checkoutDoc.populate("orders");
+
+  // Remove the orders field with just IDs from the checkout object
+  const checkoutObj = checkoutDoc.toObject();
+  const ordersDetails = checkoutObj.orders;
+  delete checkoutObj.orders;
+
+  // Remove _id from the checkout object (keep only checkoutId)
+  delete checkoutObj._id;
+
+  // Remove isDonation from each order in ordersDetails (legacy, but safe)
+  if (Array.isArray(ordersDetails)) {
+    for (const order of ordersDetails) {
+      if (order && typeof order === "object" && "isDonation" in order) {
+        delete order.isDonation;
       }
     }
-
-    // Validate delivery fee and distance
-    const deliveryFee = subOrder.delivery_fee || 0;
-    const deliveryDistance = subOrder.delivery_distance_km || 0;
-
-    if (deliveryFee < 0 || deliveryDistance < 0) {
-      return res.status(400).json({
-        success: false,
-        message: "delivery_fee و delivery_distance_km يجب أن تكون قيم موجبة",
-      });
-    }
-
-    validatedSubOrders.push({
-      cook_id: subOrder.cook_id,
-      cook_name: cook.name,
-      meals: validatedMeals,
-      delivery_id: deliveryPerson?._id,
-      delivery_name: deliveryPerson?.name,
-      delivery_fee: deliveryFee,
-      delivery_distance_km: deliveryDistance,
-      delivery_status: "pending",
-    });
   }
 
-  // حساب final_amount
-  let subtotal = 0;
-  let totalDeliveryFee = 0;
-  validatedSubOrders.forEach((subOrder) => {
-    subOrder.meals.forEach((meal) => {
-      subtotal += meal.price * meal.quantity;
-    });
-    totalDeliveryFee += subOrder.delivery_fee || 0;
-  });
-  const final_amount =
-    subtotal + totalDeliveryFee + (tax || 0) - (discount || 0);
-
-  // Create the order - no need to update user documents
-  const order = await Order.create({
-    client_id: req.userId,
-    client_name,
-    client_phone,
-    client_address,
-    location,
-    subOrders: validatedSubOrders,
-    payment: normalizedPayment,
-    tax,
-    discount,
-    notes,
-    status: "pending",
-    final_amount,
-  });
-
-  // Update meal quantities
-  for (const subOrder of validatedSubOrders) {
-    for (const meal of subOrder.meals) {
-      await Meal.findByIdAndUpdate(meal.mealId, {
-        $inc: { quantity: -meal.quantity },
-      });
-    }
-  }
-
-  // Populate and format the response
-  const populatedOrder = await Order.findById(order._id).populate([
-    { path: "subOrders.cook_id", select: "name email" },
-    { path: "subOrders.delivery_id", select: "name email" },
-    { path: "client_id", select: "name email" },
-  ]);
-
-  const formattedOrder = formatOrderResponse(populatedOrder);
-
-  res.status(201).json({
+  // At the end of createOrdersAndCheckout, return only the checkout object and full orders details
+  return {
     success: true,
-    message: "تم إنشاء الطلب بنجاح",
-    order: formattedOrder,
-  });
+    message: "تم إنشاء الطلبات بنجاح",
+    checkout: checkoutObj,
+    orders: ordersDetails,
+    stripeClientSecret: stripeClientSecret || undefined,
+  };
+}
+
+// إنشاء طلب جديد (checkout) - نموذج جديد: طلب واحد لكل طباخ مع checkoutId
+const checkout = asyncHandler(async (req, res) => {
+  const result = await createOrdersAndCheckout(
+    req.body,
+    req.user || { _id: req.userId }
+  );
+  if (result.success) {
+    res.status(201).json(result);
+  } else {
+    res.status(400).json(result);
+  }
 });
 
 // جلب طلب واحد
 const getOrder = asyncHandler(async (req, res) => {
   const { id } = req.params;
-
   const order = await Order.findById(id).populate([
-    { path: "subOrders.cook_id", select: "name email" },
-    { path: "subOrders.delivery_id", select: "name email" },
+    { path: "cook_id", select: "name email" },
+    { path: "delivery_id", select: "name email" },
     { path: "client_id", select: "name email" },
   ]);
-
   if (!order) {
     return res.status(404).json({
       success: false,
       message: "الطلب غير موجود",
     });
   }
-
   // التحقق من الصلاحيات
   if (req.userRole === "client") {
     const orderClientId =
@@ -790,10 +607,10 @@ const getOrder = asyncHandler(async (req, res) => {
       });
     }
   } else if (req.userRole === "cook") {
-    const hasCookSubOrders = order.subOrders.some(
-      (subOrder) => subOrder.cook_id.toString() === req.userId.toString()
-    );
-    if (!hasCookSubOrders) {
+    if (
+      (order.cook_id?._id?.toString() || order.cook_id?.toString()) !==
+      req.userId.toString()
+    ) {
       return res.status(403).json({
         success: false,
         message:
@@ -801,19 +618,17 @@ const getOrder = asyncHandler(async (req, res) => {
       });
     }
   } else if (req.userRole === "delivery") {
-    const hasDeliverySubOrders = order.subOrders.some(
-      (subOrder) => subOrder.delivery_id?.toString() === req.userId.toString()
-    );
-    if (!hasDeliverySubOrders) {
+    if (
+      (order.delivery_id?._id?.toString() || order.delivery_id?.toString()) !==
+      req.userId.toString()
+    ) {
       return res.status(403).json({
         success: false,
         message: "غير مصرح لك بعرض هذا الطلب - الطلب لا يحتوي على توصيل منك",
       });
     }
   }
-
   const formattedOrder = formatOrderResponse(order);
-
   res.status(200).json({
     success: true,
     message: "تم جلب الطلب بنجاح",
@@ -825,69 +640,48 @@ const getOrder = asyncHandler(async (req, res) => {
 const acceptOrderByCook = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { notes } = req.body;
-
   const order = await Order.findById(id).populate([
-    { path: "subOrders.cook_id", select: "name email" },
+    { path: "cook_id", select: "name email" },
     { path: "client_id", select: "name email" },
   ]);
-
   if (!order) {
     return res.status(404).json({
       success: false,
       message: "الطلب غير موجود",
     });
   }
-
-  // التحقق من أن الطلب في حالة pending
+  // Only allow cook to accept if payment is paid for online payments
+  if (order.payment === "online") {
+    const Checkout = require("../models/Checkout");
+    const checkout = await Checkout.findOne({ checkoutId: order.checkoutId });
+    if (!checkout || checkout.paymentStatus !== "paid") {
+      return res.status(400).json({
+        success: false,
+        message: "لا يمكن للطباخ قبول الطلب حتى يتم دفع الطلب بنجاح.",
+      });
+    }
+  }
   if (order.status !== "pending") {
     return res.status(400).json({
       success: false,
       message: "يمكن قبول الطلبات في حالة انتظار فقط",
     });
   }
-
-  // التحقق من أن الطلب يحتوي على وجبات من صنع هذا الطباخ
-  const cookSubOrders = order.subOrders.filter(
-    (subOrder) =>
-      (subOrder.cook_id && subOrder.cook_id._id
-        ? subOrder.cook_id._id.toString()
-        : subOrder.cook_id.toString()) === req.userId.toString()
-  );
-  if (cookSubOrders.length === 0) {
+  if (
+    (order.cook_id?._id?.toString() || order.cook_id?.toString()) !==
+    req.userId.toString()
+  ) {
     return res.status(403).json({
       success: false,
       message: "غير مصرح لك بقبول هذا الطلب - الطلب لا يحتوي على وجبات من صنعك",
     });
   }
-
-  // تحديث فقط sub-orders الخاصة بهذا الطباخ
-  let anyAccepted = false;
-  order.subOrders.forEach((subOrder) => {
-    if (
-      (subOrder.cook_id && subOrder.cook_id._id
-        ? subOrder.cook_id._id.toString()
-        : subOrder.cook_id.toString()) === req.userId.toString()
-    ) {
-      subOrder.status = "preparing"; // if you have a status field per sub-order
-      anyAccepted = true;
-    }
-  });
-
-  // تحديث حالة الطلب إلى preparing إذا تم قبول أي sub-order
-  if (anyAccepted) {
-    order.status = "preparing";
-    if (notes) {
-      order.notes = notes;
-    }
-    await order.save();
+  order.status = "preparing";
+  if (notes) {
+    order.notes = notes;
   }
-
-  // فقط sub-orders الخاصة بهذا الطباخ في الاستجابة
+  await order.save();
   const formattedOrder = formatOrderResponse(order);
-  formattedOrder.subOrders = formattedOrder.subOrders.filter(
-    (subOrder) => subOrder.cook.id.toString() === req.userId.toString()
-  );
-
   res.status(200).json({
     success: true,
     message: "تم قبول الطلب بنجاح",
@@ -898,99 +692,55 @@ const acceptOrderByCook = asyncHandler(async (req, res) => {
 // قبول الطلب لمندوب التوصيل
 const acceptOrderByDelivery = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const { sub_order_id, notes } = req.body;
-
-  // التحقق من توثيق هوية مندوب التوصيل
+  const { notes } = req.body;
   if (!req.user.isIdentityVerified) {
     return res.status(403).json({
       success: false,
       message: "لا يمكنك قبول الطلبات حتى يتم توثيق هويتك من الإدارة.",
     });
   }
-
-  if (!sub_order_id) {
-    return res.status(400).json({
-      success: false,
-      message: "يجب تحديد sub_order_id",
-    });
-  }
-
   const order = await Order.findById(id).populate([
-    { path: "subOrders.cook_id", select: "name email location" },
+    { path: "cook_id", select: "name email location" },
     { path: "client_id", select: "name email" },
   ]);
-
   if (!order) {
     return res.status(404).json({
       success: false,
       message: "الطلب غير موجود",
     });
   }
-
-  // التحقق من أن الطلب في حالة preparing أو completed
   if (order.status !== "preparing" && order.status !== "completed") {
     return res.status(400).json({
       success: false,
       message: "يمكن قبول الطلبات في حالة قيد التحضير أو مكتمل فقط",
     });
   }
-
-  // البحث عن sub-order المحدد
-  const subOrder = order.subOrders.find(
-    (so) => so._id.toString() === sub_order_id
-  );
-
-  if (!subOrder) {
-    return res.status(404).json({
-      success: false,
-      message: "sub-order غير موجود",
-    });
-  }
-
-  // التحقق من أن sub-order غير مخصص لمندوب توصيل آخر
-  if (
-    subOrder.delivery_id &&
-    subOrder.delivery_id.toString() !== req.userId.toString()
-  ) {
+  if (order.delivery && order.delivery.status === "accepted") {
     return res.status(400).json({
       success: false,
-      message: "هذا sub-order مخصص لمندوب توصيل آخر بالفعل",
+      message: "تم قبول هذا الطلب بالفعل من قبل مندوب توصيل آخر.",
     });
   }
-
-  // التحقق من موقع مندوب التوصيل والطباخ
   if (!req.user.location || !req.user.location.lat || !req.user.location.lng) {
     return res.status(400).json({
       success: false,
       message: "يجب تحديث موقعك أولاً لقبول الطلبات.",
     });
   }
-
-  const cook = subOrder.cook_id;
+  const cook = order.cook_id;
   if (!cook || !cook.location || !cook.location.lat || !cook.location.lng) {
     return res.status(400).json({
       success: false,
       message: "موقع الطباخ غير متوفر، لا يمكن قبول الطلب.",
     });
   }
-
-  // حساب المسافة بين مندوب التوصيل والطباخ
   const distance = calculateDistance(
     req.user.location.lat,
     req.user.location.lng,
     cook.location.lat,
     cook.location.lng
   );
-
-  const maxDistance = 50; // أقصى مسافة بالكيلومترات
-  const urgentDistance = 5; // مسافة الطلبات العاجلة (5 كم)
-
-  // تحقق من وقت الطلب
-  const orderAge = Date.now() - new Date(order.createdAt).getTime();
-  const isUrgentOrder = orderAge > 10 * 60 * 1000; // أكثر من 10 دقائق
-  const isUrgentDistance = distance <= urgentDistance;
-
-  // التحقق من المسافة
+  const maxDistance = 3;
   if (distance > maxDistance) {
     return res.status(400).json({
       success: false,
@@ -999,41 +749,23 @@ const acceptOrderByDelivery = asyncHandler(async (req, res) => {
       )} كم) أكبر من الحد المسموح (${maxDistance} كم).`,
     });
   }
-
-  // إذا كان الطلب عاجل وقريب، اسمح بقبوله حتى لو كان لديه طلب نشط
-  if (isUrgentOrder && isUrgentDistance) {
-    // السماح بقبول الطلب العاجل
-  } else if (distance > maxDistance) {
-    return res.status(400).json({
-      success: false,
-      message: `المسافة بينك والطباخ (${distance.toFixed(
-        1
-      )} كم) أكبر من الحد المسموح (${maxDistance} كم).`,
-    });
-  }
-
-  // تحديث فقط هذا sub-order
-  subOrder.delivery_id = req.userId;
-  subOrder.delivery_name = req.user.name;
-  subOrder.delivery_status = "pending";
+  // Set delivery object and status
+  order.delivery = {
+    id: req.userId,
+    name: req.user.name,
+    status: "accepted",
+  };
+  order.status = "delivering";
   if (notes) {
     order.notes = notes;
   }
   await order.save();
-
-  // فقط هذا sub-order في الاستجابة
   const formattedOrder = formatOrderResponse(order);
-  formattedOrder.subOrders = formattedOrder.subOrders.filter(
-    (so) => so.sub_order_id.toString() === sub_order_id
-  );
-
   res.status(200).json({
     success: true,
-    message: "تم قبول الطلب الخاص بك بنجاح",
+    message: "تم قبول الطلب الخاص بك بنجاح. الطلب الآن في حالة توصيل.",
     order: formattedOrder,
     distance_to_cook_km: distance.toFixed(1),
-    is_urgent_order: isUrgentOrder,
-    waiting_time_minutes: isUrgentOrder ? Math.floor(orderAge / 60000) : null,
   });
 });
 
@@ -1047,31 +779,23 @@ const updateOrder = asyncHandler(async (req, res) => {
     client_name,
     client_phone,
     client_address,
-    sub_orders,
     delivery_confirmed,
     client_received,
   } = req.body;
-
   const order = await Order.findById(id).populate([
-    { path: "subOrders.cook_id", select: "name email" },
-    { path: "subOrders.delivery_id", select: "name email" },
+    { path: "cook_id", select: "name email" },
     { path: "client_id", select: "name email" },
   ]);
-
   if (!order) {
     return res.status(404).json({
       success: false,
       message: "الطلب غير موجود",
     });
   }
-
-  // التحقق من الصلاحيات حسب الدور
   let canUpdate = false;
   let updateMessage = "";
-
   switch (req.userRole) {
     case "client": {
-      // العميل يمكنه فقط تحديث الطلبات التي تخصه
       const orderClientId =
         order.client_id?._id?.toString() || order.client_id?.toString();
       if (orderClientId !== req.userId.toString()) {
@@ -1080,46 +804,24 @@ const updateOrder = asyncHandler(async (req, res) => {
           message: "غير مصرح لك بتحديث هذا الطلب - الطلب لا يخصك",
         });
       }
-
-      // إلغاء الطلب
       if (status === "cancelled") {
-        const allPending = order.subOrders.every(
-          (subOrder) => !subOrder.status || subOrder.status === "pending"
-        );
-        const somePending = order.subOrders.some(
-          (subOrder) => !subOrder.status || subOrder.status === "pending"
-        );
-        const someAccepted = order.subOrders.some(
-          (subOrder) => subOrder.status && subOrder.status !== "pending"
-        );
-        if (allPending) {
-          // Cancel the whole order
+        if (order.status === "pending") {
+          // Restore meal quantities on cancel
+          for (const meal of order.meals) {
+            await Meal.findByIdAndUpdate(meal.mealId, {
+              $inc: { quantity: meal.quantity },
+            });
+          }
           order.status = "cancelled";
-          order.subOrders.forEach((subOrder) => {
-            subOrder.status = "cancelled";
-          });
           canUpdate = true;
           updateMessage = "تم إلغاء الطلب بنجاح";
-        } else if (somePending && someAccepted) {
-          // Cancel only the pending sub-orders
-          order.subOrders.forEach((subOrder) => {
-            if (!subOrder.status || subOrder.status === "pending") {
-              subOrder.status = "cancelled";
-            }
-          });
-          canUpdate = true;
-          updateMessage =
-            "تم إلغاء الأجزاء غير المقبولة من الطلب. الطلب مستمر مع الطهاة الذين قبلوا فقط.";
         } else {
-          // All accepted, cannot cancel
           return res.status(400).json({
             success: false,
-            message: "لا يمكن إلغاء الطلب بعد قبول أحد الطهاة.",
+            message: "لا يمكن إلغاء الطلب بعد قبوله.",
           });
         }
-      }
-      // تحديث البيانات الشخصية
-      else if (
+      } else if (
         order.status === "pending" &&
         (client_name || client_phone || client_address)
       ) {
@@ -1128,18 +830,15 @@ const updateOrder = asyncHandler(async (req, res) => {
         if (client_name) order.client_name = client_name;
         if (client_phone) order.client_phone = client_phone;
         if (client_address) order.client_address = client_address;
-      }
-      // تأكيد استلام الطلب
-      else if (
-        (status === "delivered" || client_received) &&
-        order.status === "delivering"
+      } else if (
+        (status === "confirmed" || client_received) &&
+        order.status === "delivered"
       ) {
         canUpdate = true;
-        order.status = "delivered";
-        updateMessage = "تم تأكيد استلام الطلب من العميل بنجاح";
-      }
-      // تحديث الملاحظات فقط
-      else if (notes && order.status === "pending") {
+        order.status = "confirmed";
+        updateMessage =
+          "تم تأكيد استلام الطلب من العميل بنجاح. الطلب الآن مؤكد.";
+      } else if (notes && order.status === "pending") {
         canUpdate = true;
         updateMessage = "تم تحديث الملاحظات بنجاح";
         order.notes = notes;
@@ -1147,63 +846,52 @@ const updateOrder = asyncHandler(async (req, res) => {
       break;
     }
     case "cook": {
-      // الشيف يمكنه تحديث sub-orders الخاصة به فقط
-      let updatedAny = false;
-      order.subOrders.forEach((subOrder) => {
-        if (subOrder.cook_id.toString() === req.userId.toString()) {
-          if (
-            status &&
-            ["preparing", "completed", "cancelled"].includes(status)
-          ) {
-            subOrder.status = status;
-            updatedAny = true;
-          }
-          if (notes) {
-            subOrder.notes = notes;
-            updatedAny = true;
-          }
-        }
-      });
-      if (updatedAny) {
-        canUpdate = true;
-        updateMessage = "تم تحديث حالة الطلب الفرعي الخاص بك بنجاح";
-      } else {
-        return res.status(403).json({
-          success: false,
-          message:
-            "غير مصرح لك بتحديث هذا الطلب أو لا يوجد لديك طلب فرعي لتحديثه",
-        });
-      }
-      break;
-    }
-    case "delivery": {
-      // مندوب التوصيل يمكنه تحديث sub-orders الخاصة به
-      const hasDeliverySubOrders = order.subOrders.some(
-        (subOrder) => subOrder.delivery_id?.toString() === req.userId.toString()
-      );
-      if (!hasDeliverySubOrders) {
+      if (
+        (order.cook_id?._id?.toString() || order.cook_id?.toString()) !==
+        req.userId.toString()
+      ) {
         return res.status(403).json({
           success: false,
           message: "غير مصرح لك بتحديث هذا الطلب",
         });
       }
-
-      // تحديث حالة التوصيل
+      if (status && ["preparing", "completed", "cancelled"].includes(status)) {
+        order.status = status;
+        canUpdate = true;
+        if (status === "completed") {
+          updateMessage =
+            "تم تحديث حالة الطلب الخاص بك بنجاح. الطلب جاهز الآن ويمكن للمندوب استلامه من الطباخ.";
+        } else {
+          updateMessage = "تم تحديث حالة الطلب الخاص بك بنجاح";
+        }
+      }
+      if (notes) {
+        order.notes = notes;
+        canUpdate = true;
+        if (!updateMessage)
+          updateMessage = "تم تحديث ملاحظات الطلب الخاص بك بنجاح";
+      }
+      break;
+    }
+    case "delivery": {
+      if (
+        !order.delivery ||
+        order.delivery.id?.toString() !== req.userId.toString()
+      ) {
+        return res.status(403).json({
+          success: false,
+          message: "غير مصرح لك بتحديث هذا الطلب",
+        });
+      }
       if (delivery_confirmed) {
         canUpdate = true;
-        // تحديث جميع sub-orders الخاصة بهذا المندوب
-        order.subOrders.forEach((subOrder) => {
-          if (subOrder.delivery_id?.toString() === req.userId.toString()) {
-            subOrder.delivery_status = "delivered";
-            subOrder.delivered_at = new Date();
-          }
-        });
+        order.status = "delivered";
+        order.delivered_at = new Date();
         updateMessage = "تم تأكيد التوصيل";
       }
       break;
     }
     case "admin": {
-      // المدير يمكنه تحديث أي شيء
       canUpdate = true;
       if (status) order.status = status;
       if (notes) order.notes = notes;
@@ -1221,18 +909,14 @@ const updateOrder = asyncHandler(async (req, res) => {
         message: "دور غير معروف",
       });
   }
-
   if (!canUpdate) {
     return res.status(400).json({
       success: false,
       message: "لا يمكن تحديث الطلب في هذه الحالة",
     });
   }
-
   await order.save();
-
   const formattedOrder = formatOrderResponse(order);
-
   res.status(200).json({
     success: true,
     message: updateMessage,
@@ -1252,7 +936,7 @@ const checkDeliveryAvailability = asyncHandler(async (req, res) => {
 
   // التحقق من الطلبات الحالية لمندوب التوصيل
   const currentOrders = await Order.find({
-    "subOrders.delivery_id": new mongoose.Types.ObjectId(req.userId),
+    delivery_id: new mongoose.Types.ObjectId(req.userId),
     status: { $in: ["preparing", "completed", "delivering"] },
   });
 
@@ -1370,4 +1054,5 @@ module.exports = {
   updateDeliveryLocation,
   checkDeliveryAvailability,
   formatOrderResponse,
+  createOrdersAndCheckout,
 };
