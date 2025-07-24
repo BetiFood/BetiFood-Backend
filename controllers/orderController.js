@@ -109,7 +109,7 @@ const getAllOrders = asyncHandler(async (req, res) => {
   let filter = {};
   let populateOptions = [
     { path: "cook_id", select: "name email" },
-    { path: "delivery_id", select: "name email" },
+    { path: "delivery.id", select: "name email" }, // updated for nested delivery
     { path: "client_id", select: "name email" },
   ];
 
@@ -587,7 +587,7 @@ const getOrder = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const order = await Order.findById(id).populate([
     { path: "cook_id", select: "name email" },
-    { path: "delivery_id", select: "name email" },
+    { path: "delivery.id", select: "name email" }, // updated for nested delivery
     { path: "client_id", select: "name email" },
   ]);
   if (!order) {
