@@ -66,11 +66,20 @@ exports.stripeWebhook = async (req, res) => {
 // GET endpoint for checkout status
 exports.getCheckoutStatus = async (req, res) => {
   const { checkoutId } = req.params;
-  const checkout = await Checkout.findOne({ checkoutId });
+  const checkout = await Checkout.findOne({ checkoutId }).populate("orders");
   if (!checkout) {
     return res
       .status(404)
       .json({ success: false, message: "Checkout not found" });
   }
   res.json({ success: true, checkout });
+};
+
+// New: Get all checkouts for the authenticated client
+exports.getAllCheckoutsForClient = async (req, res) => {
+  const clientId = req.user._id || req.userId;
+  const checkouts = await Checkout.find({ client_id: clientId })
+    .populate("orders")
+    .sort({ createdAt: -1 });
+  res.json({ success: true, checkouts });
 };

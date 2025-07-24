@@ -18,6 +18,13 @@ router.post(
 );
 
 // GET endpoint for checkout status
-router.get("/checkout/:checkoutId", paymentController.getCheckoutStatus);
+router.get(
+  "/checkout/:checkoutId",
+  protect,
+  paymentController.getCheckoutStatus
+);
+
+// GET endpoint for all checkouts for the authenticated client
+router.get("/checkout", protect, paymentController.getAllCheckoutsForClient);
 
 module.exports = router;
