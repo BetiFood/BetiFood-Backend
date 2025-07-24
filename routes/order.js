@@ -8,9 +8,7 @@ const {
   checkout,
   getOrder,
   getAvailableOrdersForCook,
-  getMyCookOrders,
   getAvailableOrdersForDelivery,
-  getMyDeliveryOrders,
   acceptOrderByCook,
   acceptOrderByDelivery,
   updateDeliveryLocation,
@@ -34,14 +32,6 @@ router.get(
   protect,
   checkRole("delivery"),
   getAvailableOrdersForDelivery
-);
-
-// جلب طلبات مندوب التوصيل الخاصة (التي قبلها)
-router.get(
-  "/my-delivery-orders",
-  protect,
-  checkRole("delivery"),
-  getMyDeliveryOrders
 );
 
 // التحقق من إمكانية قبول طلب جديد لمندوب التوصيل
