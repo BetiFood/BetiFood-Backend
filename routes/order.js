@@ -28,9 +28,6 @@ router.get("/", protect, getAllOrders);
 // جلب الطلبات المتاحة للشيف (pending وغير مخصصة)
 router.get("/available", protect, checkRole("cook"), getAvailableOrdersForCook);
 
-// جلب طلبات الطباخ الخاصة (التي قام بإنشائها)
-router.get("/my-orders", protect, checkRole("cook"), getMyCookOrders);
-
 // جلب الطلبات المتاحة لمندوب التوصيل (preparing/completed وغير مخصصة)
 router.get(
   "/available-delivery",

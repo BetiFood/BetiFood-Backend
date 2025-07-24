@@ -186,29 +186,6 @@ const getAvailableOrdersForCook = asyncHandler(async (req, res) => {
   });
 });
 
-// جلب طلبات الطباخ الخاصة
-const getMyCookOrders = asyncHandler(async (req, res) => {
-  const filter = {
-    cook_id: new mongoose.Types.ObjectId(req.userId),
-  };
-
-  const populateOptions = [{ path: "cook_id", select: "name email" }];
-
-  const orders = await Order.find(filter)
-    .populate(populateOptions)
-    .sort({ createdAt: -1 });
-
-  // For each order, return only the order info (no sub-orders)
-  const cookOrders = orders.map((order) => formatOrderResponse(order));
-
-  res.status(200).json({
-    success: true,
-    message: "تم جلب طلباتك بنجاح",
-    orders: cookOrders,
-    count: cookOrders.length,
-  });
-});
-
 // جلب الطلبات المتاحة لمندوب التوصيل مع فلترة حسب الموقع
 const getAvailableOrdersForDelivery = asyncHandler(async (req, res) => {
   if (!req.user.isIdentityVerified) {
@@ -287,33 +264,6 @@ const getAvailableOrdersForDelivery = asyncHandler(async (req, res) => {
     count: availableOrders.length,
     delivery_location: req.user.location,
     max_distance_km: maxDistance,
-  });
-});
-
-// جلب طلبات مندوب التوصيل الخاصة
-const getMyDeliveryOrders = asyncHandler(async (req, res) => {
-  if (!req.user.isIdentityVerified) {
-    return res.status(403).json({
-      success: false,
-      message: "لا يمكنك رؤية الطلبات حتى يتم توثيق هويتك من الإدارة.",
-    });
-  }
-  const filter = {
-    delivery_id: new mongoose.Types.ObjectId(req.userId),
-  };
-  const populateOptions = [
-    { path: "cook_id", select: "name email location" },
-    { path: "client_id", select: "name email phone" },
-  ];
-  const orders = await Order.find(filter)
-    .populate(populateOptions)
-    .sort({ createdAt: -1 });
-  const formattedOrders = orders.map((order) => formatOrderResponse(order));
-  res.status(200).json({
-    success: true,
-    message: `تم جلب ${formattedOrders.length} طلب من طلباتك بنجاح`,
-    orders: formattedOrders,
-    count: formattedOrders.length,
   });
 });
 
@@ -709,7 +659,7 @@ const acceptOrderByDelivery = asyncHandler(async (req, res) => {
       message: "الطلب غير موجود",
     });
   }
-  if (order.status !== "preparing" && order.status !== "completed") {
+  if (order.status !== "completed" && order.status !== "preparing") {
     return res.status(400).json({
       success: false,
       message: "يمكن قبول الطلبات في حالة قيد التحضير أو مكتمل فقط",
@@ -749,13 +699,12 @@ const acceptOrderByDelivery = asyncHandler(async (req, res) => {
       )} كم) أكبر من الحد المسموح (${maxDistance} كم).`,
     });
   }
-  // Set delivery object and status
+  // Set delivery object and status (do NOT change order.status)
   order.delivery = {
     id: req.userId,
     name: req.user.name,
     status: "accepted",
   };
-  order.status = "delivering";
   if (notes) {
     order.notes = notes;
   }
@@ -763,7 +712,7 @@ const acceptOrderByDelivery = asyncHandler(async (req, res) => {
   const formattedOrder = formatOrderResponse(order);
   res.status(200).json({
     success: true,
-    message: "تم قبول الطلب الخاص بك بنجاح. الطلب الآن في حالة توصيل.",
+    message: "تم قبول الطلب الخاص بك بنجاح. تم تعيينك كمندوب توصيل لهذا الطلب.",
     order: formattedOrder,
     distance_to_cook_km: distance.toFixed(1),
   });
@@ -882,6 +831,11 @@ const updateOrder = asyncHandler(async (req, res) => {
           success: false,
           message: "غير مصرح لك بتحديث هذا الطلب",
         });
+      }
+      if (status === "delivering") {
+        canUpdate = true;
+        order.status = "delivering";
+        updateMessage = "تم تحديث حالة الطلب إلى جاري التوصيل.";
       }
       if (delivery_confirmed) {
         canUpdate = true;
@@ -1043,9 +997,7 @@ const updateDeliveryLocation = asyncHandler(async (req, res) => {
 module.exports = {
   getAllOrders,
   getAvailableOrdersForCook,
-  getMyCookOrders,
   getAvailableOrdersForDelivery,
-  getMyDeliveryOrders,
   checkout,
   getOrder,
   acceptOrderByCook,
