@@ -14,6 +14,14 @@ const connectDB = require("../config/connection");
 const passwordRegex =
   /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]).{8,}$/;
 
+// Helper to get the correct frontend URL
+const getFrontendUrl = () => {
+  if (process.env.NODE_ENV === "production") {
+    return process.env.FRONTEND_Production_URL;
+  }
+  return process.env.FRONTEND_Development_URL;
+};
+
 exports.register = async (req, res) => {
   await connectDB();
   try {
@@ -62,7 +70,7 @@ exports.register = async (req, res) => {
       { expiresIn: "1d" }
     );
     // Setup verification link for the frontend
-    const verificationUrl = `${process.env.FRONTEND_URL}/confirm-email?token=${verificationToken}`;
+    const verificationUrl = `${getFrontendUrl()}/confirm-email?token=${verificationToken}`;
     try {
       await sendEmail({
         to: email,
@@ -173,7 +181,7 @@ exports.forgotPassword = async (req, res) => {
   });
 
   // Create reset link
-  const resetLink = `${process.env.FRONTEND_URL}/reset-password?token=${token}`;
+  const resetLink = `${getFrontendUrl()}/reset-password?token=${token}`;
 
   // Send email using HTML template
   const html = generateResetPasswordEmail(resetLink);

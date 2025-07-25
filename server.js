@@ -28,7 +28,10 @@ connectDB();
 // Allow all origins (you can customize later)
 app.use(
   cors({
-    origin: process.env.FRONTEND_URL,
+    origin: [
+      process.env.FRONTEND_Production_URL,
+      process.env.FRONTEND_Development_URL,
+    ],
   })
 );
 app.use(express.json());
