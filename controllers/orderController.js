@@ -26,6 +26,17 @@ const calculateDistance = (lat1, lng1, lat2, lng2) => {
 
 // Helper function to format order response for the new schema
 const formatOrderResponse = (order) => {
+  // Extract cook info
+  let cookPhone = "";
+  let cookAddress = null;
+  let cookLocation = null;
+  if (order.cook_id) {
+    cookPhone = order.cook_id.phone || "";
+    if (order.cook_id.verificationRef) {
+      cookAddress = order.cook_id.verificationRef.address || null;
+      cookLocation = order.cook_id.verificationRef.location || null;
+    }
+  }
   return {
     order_id: order._id,
     checkout_id: order.checkoutId,
@@ -40,6 +51,9 @@ const formatOrderResponse = (order) => {
     cook: {
       id: order.cook_id?._id || order.cook_id,
       name: order.cook_name,
+      phone: cookPhone,
+      address: cookAddress,
+      location: cookLocation,
     },
     meals: order.meals.map((meal) => ({
       id: meal.mealId,
@@ -108,7 +122,11 @@ const formatArabicDate = (date) => {
 const getAllOrders = asyncHandler(async (req, res) => {
   let filter = {};
   let populateOptions = [
-    { path: "cook_id", select: "name email" },
+    {
+      path: "cook_id",
+      select: "name email phone verificationRef",
+      populate: { path: "verificationRef", select: "address location" },
+    },
     { path: "delivery.id", select: "name email" }, // updated for nested delivery
     { path: "client_id", select: "name email" },
   ];
@@ -168,7 +186,11 @@ const getAvailableOrdersForCook = asyncHandler(async (req, res) => {
   };
 
   const populateOptions = [
-    { path: "cook_id", select: "name email" },
+    {
+      path: "cook_id",
+      select: "name email phone verificationRef",
+      populate: { path: "verificationRef", select: "address location" },
+    },
     { path: "client_id", select: "name email" },
   ];
 
@@ -212,7 +234,7 @@ const getAvailableOrdersForDelivery = asyncHandler(async (req, res) => {
   const populateOptions = [
     {
       path: "cook_id",
-      select: "name email verificationRef",
+      select: "name email phone verificationRef",
       populate: { path: "verificationRef", select: "location status" },
     },
     { path: "client_id", select: "name email phone" },
@@ -536,7 +558,11 @@ const checkout = asyncHandler(async (req, res) => {
 const getOrder = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const order = await Order.findById(id).populate([
-    { path: "cook_id", select: "name email" },
+    {
+      path: "cook_id",
+      select: "name email phone verificationRef",
+      populate: { path: "verificationRef", select: "address location" },
+    },
     { path: "delivery.id", select: "name email" }, // updated for nested delivery
     { path: "client_id", select: "name email" },
   ]);
@@ -591,7 +617,11 @@ const acceptOrderByCook = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { notes } = req.body;
   const order = await Order.findById(id).populate([
-    { path: "cook_id", select: "name email" },
+    {
+      path: "cook_id",
+      select: "name email phone verificationRef",
+      populate: { path: "verificationRef", select: "address location" },
+    },
     { path: "client_id", select: "name email" },
   ]);
   if (!order) {
@@ -650,7 +680,11 @@ const acceptOrderByDelivery = asyncHandler(async (req, res) => {
     });
   }
   const order = await Order.findById(id).populate([
-    { path: "cook_id", select: "name email location" },
+    {
+      path: "cook_id",
+      select: "name email phone verificationRef",
+      populate: { path: "verificationRef", select: "address location" },
+    },
     { path: "client_id", select: "name email" },
   ]);
   if (!order) {
@@ -732,7 +766,11 @@ const updateOrder = asyncHandler(async (req, res) => {
     client_received,
   } = req.body;
   const order = await Order.findById(id).populate([
-    { path: "cook_id", select: "name email" },
+    {
+      path: "cook_id",
+      select: "name email phone verificationRef",
+      populate: { path: "verificationRef", select: "address location" },
+    },
     { path: "client_id", select: "name email" },
   ]);
   if (!order) {
@@ -804,7 +842,28 @@ const updateOrder = asyncHandler(async (req, res) => {
           message: "غير مصرح لك بتحديث هذا الطلب",
         });
       }
-      if (status && ["preparing", "completed", "cancelled"].includes(status)) {
+      // Allow cook to cancel (reject) a pending order
+      if (status === "cancelled") {
+        if (order.status === "pending") {
+          // Restore meal quantities on cancel
+          for (const meal of order.meals) {
+            await Meal.findByIdAndUpdate(meal.mealId, {
+              $inc: { quantity: meal.quantity },
+            });
+          }
+          order.status = "cancelled";
+          canUpdate = true;
+          updateMessage = "تم إلغاء الطلب بنجاح من قبل الطباخ.";
+        } else {
+          return res.status(400).json({
+            success: false,
+            message: "لا يمكن للطباخ إلغاء الطلب بعد قبوله أو تغييره.",
+          });
+        }
+      } else if (
+        status &&
+        ["preparing", "completed", "cancelled"].includes(status)
+      ) {
         order.status = status;
         canUpdate = true;
         if (status === "completed") {
@@ -837,7 +896,8 @@ const updateOrder = asyncHandler(async (req, res) => {
         order.status = "delivering";
         updateMessage = "تم تحديث حالة الطلب إلى جاري التوصيل.";
       }
-      if (delivery_confirmed) {
+      // Accept both status === "delivered" and delivery_confirmed
+      if (delivery_confirmed || status === "delivered") {
         canUpdate = true;
         order.status = "delivered";
         order.delivered_at = new Date();
