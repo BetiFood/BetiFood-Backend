@@ -65,9 +65,9 @@ const formatOrderResponse = (order) => {
       total_price: meal.price * meal.quantity,
     })),
     delivery: {
-      id: order.delivery_id?._id || order.delivery_id,
-      name: order.delivery_name,
-      status: order.delivery_status,
+      id: order.delivery?.id || order.delivery_id?._id || order.delivery_id,
+      name: order.delivery?.name || order.delivery_name,
+      status: order.delivery?.status || order.delivery_status,
       fee: order.delivery_fee,
       distance_km: order.delivery_distance_km,
       picked_up_at: order.picked_up_at,
@@ -277,6 +277,15 @@ const getAvailableOrdersForDelivery = asyncHandler(async (req, res) => {
   // Sort by closest first
   availableOrders.sort(
     (a, b) => a.distance_from_delivery - b.distance_from_delivery
+  );
+
+  // Debug log: print order IDs and their distances
+  console.log(
+    "DELIVERY ORDERS:",
+    availableOrders.map((o) => ({
+      id: o.order_id,
+      distance: o.distance_from_delivery,
+    }))
   );
 
   res.status(200).json({
