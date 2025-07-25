@@ -712,7 +712,13 @@ const acceptOrderByDelivery = asyncHandler(async (req, res) => {
     });
   }
   const cook = order.cook_id;
-  if (!cook || !cook.location || !cook.location.lat || !cook.location.lng) {
+  if (
+    !cook ||
+    !cook.verificationRef ||
+    !cook.verificationRef.location ||
+    typeof cook.verificationRef.location.latitude !== "number" ||
+    typeof cook.verificationRef.location.longitude !== "number"
+  ) {
     return res.status(400).json({
       success: false,
       message: "موقع الطباخ غير متوفر، لا يمكن قبول الطلب.",
@@ -721,8 +727,8 @@ const acceptOrderByDelivery = asyncHandler(async (req, res) => {
   const distance = calculateDistance(
     req.user.location.lat,
     req.user.location.lng,
-    cook.location.lat,
-    cook.location.lng
+    cook.verificationRef.location.latitude,
+    cook.verificationRef.location.longitude
   );
   const maxDistance = 3;
   if (distance > maxDistance) {
