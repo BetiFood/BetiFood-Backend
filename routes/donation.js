@@ -5,33 +5,32 @@ const {
   createDonation,
   getAllDonations,
   getDonation,
-  updateDonation,
-  acceptDonationOrderByDelivery,
+  updateDonationStatus,
+  confirmDonationByToken,
   getDonationStats,
+  createDonationFromCart,
 } = require("../controllers/donationController");
 const { protect, requireAdminRole } = require("../middleware/authMiddleware");
 
 // إنشاء تبرع جديد - للعملاء فقط
 router.post("/", protect, checkRole("client"), createDonation);
 
-// جلب جميع التبرعات - للعملاء والمدراء
+// جلب جميع التبرعات - للعملاء والطباخين والمدراء
 router.get("/", protect, getAllDonations);
 
-// جلب تبرع واحد - للعملاء والمدراء
+// جلب تبرع واحد - للعملاء والطباخين والمدراء
 router.get("/:id", protect, getDonation);
 
-// تحديث التبرع - للعملاء والمدراء
-router.put("/:id", protect, updateDonation);
+// تحديث حالة التبرع - للطباخين فقط
+router.patch("/:id/status", protect, checkRole("cook"), updateDonationStatus);
 
-// جلب إحصائيات التبرعات - للعملاء والمدراء
+// تأكيد التبرع بواسطة الجمعية عبر الرابط - بدون تسجيل دخول
+router.get("/confirm/:token", confirmDonationByToken);
+
+// جلب إحصائيات التبرعات - للعملاء والطباخين والمدراء
 router.get("/stats/overview", protect, getDonationStats);
 
-// قبول طلب تبرع من قبل مندوب التوصيل
-router.post(
-  "/accept-donation",
-  protect,
-  checkRole("delivery"),
-  acceptDonationOrderByDelivery
-);
+// إنشاء تبرع من سلة التسوق - للعملاء فقط
+router.post("/cart", protect, checkRole("client"), createDonationFromCart);
 
 module.exports = router;

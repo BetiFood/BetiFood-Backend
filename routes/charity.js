@@ -1,41 +1,37 @@
 const express = require("express");
 const router = express.Router();
-const charityController = require("../controllers/charityController");
 const checkRole = require("../middleware/roles");
-const auth = require("../middleware/auth");
-const multer = require("multer");
-const upload = multer({ storage: multer.memoryStorage() });
-const uploadProof = require('../middleware/uploadMiddleware');
-const { createDonation, createDonationToCook, createDonationMeal } = require('../controllers/charityController');
-const { protect } = require('../middleware/authMiddleware');
+const {
+  createCharity,
+  getAllCharities,
+  updateCharity,
+  deleteCharity,
+} = require("../controllers/charityController");
+const { protect, requireAdminRole } = require("../middleware/authMiddleware");
+const upload = require("../middleware/uploadMiddleware");
 
+// إضافة جمعية جديدة - للمدراء فقط
 router.post(
   "/",
-  auth,
-  checkRole("admin"),
+  protect,
+  requireAdminRole,
   upload.single("image"),
-  charityController.createCharity
+  createCharity
 );
-router.get("/", charityController.getAllCharities);
+
+// عرض كل الجمعيات - للجميع
+router.get("/", getAllCharities);
+
+// تعديل جمعية - للمدراء فقط
 router.put(
   "/:id",
-  auth,
-  checkRole("admin"),
+  protect,
+  requireAdminRole,
   upload.single("image"),
-  charityController.updateCharity
+  updateCharity
 );
-router.delete(
-  "/:id",
-  auth,
-  checkRole("admin"),
-  charityController.deleteCharity
-);
-router.post('/donate', protect, createDonation);
-router.post('/meal-donation', protect, charityController.createMealDonationToCharity);
 
-router.get('/:id/donations', protect, checkRole('admin'), charityController.getCharityDonations);
-router.get('/donations/my', protect, charityController.getMyDonations);
-router.put('/donations/:id', protect, uploadProof.fields([{ name: 'proofImage', maxCount: 1 }]), charityController.updateDonation);
-router.patch('/donations/:id/confirm-receipt', protect, charityController.confirmDonationReceipt);
+// حذف جمعية - للمدراء فقط
+router.delete("/:id", protect, requireAdminRole, deleteCharity);
 
 module.exports = router;
