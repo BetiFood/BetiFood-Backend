@@ -142,7 +142,7 @@ async function getMeals(req, res) {
       category,
       sort,
       page = 1,
-      limit = 10,
+      limit = 15,
       query, // for search
     } = req.query;
 
@@ -183,14 +183,13 @@ async function getMeals(req, res) {
 
     // Pagination
     const skip = (page - 1) * limit;
-
-    // Only show meals for cooks who are verified and isIdentityVerified (public/client)
+    // جلب كل الوجبات
+    const totalMeals = await Meal.countDocuments(filter);
     const meals = await Meal.find(filter)
       .sort(sortOption)
       .skip(skip)
       .limit(Number(limit));
-
-    // Filter meals by cook's verification status
+    // فلترة الوجبات حسب توثيق الطباخ
     const cookIds = meals.map((meal) => meal.cook.cookId);
     const cooks = await User.find({
       _id: { $in: cookIds },
@@ -201,8 +200,17 @@ async function getMeals(req, res) {
     const filteredMeals = meals.filter((meal) =>
       allowedCookIds.has(meal.cook.cookId.toString())
     );
-
-    res.status(200).json(filteredMeals);
+    const totalPages = Math.ceil(totalMeals / limit);
+    res.status(200).json({
+      meals: filteredMeals,
+      pagination: {
+        currentPage: Number(page),
+        totalPages,
+        totalMeals: filteredMeals.length,
+        hasNext: Number(page) < totalPages,
+        hasPrev: Number(page) > 1
+      }
+    });
   } catch (err) {
     console.error("Error getting meals:", err);
     res.status(500).json({
