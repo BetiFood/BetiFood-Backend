@@ -33,8 +33,8 @@ const formatDonationResponse = (donation) => {
       id: donation.cook?._id || donation.cook,
       name: donation.cook?.name || "",
       phone: donation.cook?.phone || "",
-      address: donation.cook?.verificationRef?.address || "",
-      location: donation.cook?.verificationRef?.location || "",
+      address: donation.cook?.verificationRef?.address || {},
+      location: donation.cook?.verificationRef?.location || {},
     },
     meals:
       donation.meals?.map((meal) => ({
@@ -246,7 +246,14 @@ exports.updateDonationStatus = asyncHandler(async (req, res) => {
   const donation = await Donation.findById(id)
     .populate("toCharity", "name email")
     .populate("donor", "name email")
-    .populate("cook", "name email phone verificationRef")
+    .populate({
+      path: "cook",
+      select: "name email phone verificationRef",
+      populate: {
+        path: "verificationRef",
+        select: "address location",
+      },
+    })
     .populate("meals.meal", "name price");
 
   if (!donation) {
@@ -257,7 +264,7 @@ exports.updateDonationStatus = asyncHandler(async (req, res) => {
   }
 
   // التحقق من أن المستخدم هو الطباخ
-  if (donation.cook._id.toString() !== req.userId) {
+  if (donation.cook._id.toString() !== req.userId.toString()) {
     return res.status(403).json({
       success: false,
       message: "غير مصرح لك بتحديث هذا التبرع",
@@ -556,7 +563,14 @@ exports.createDonationFromCart = asyncHandler(async (req, res) => {
   const populatedDonation = await Donation.findById(donation._id)
     .populate("donor", "name email")
     .populate("toCharity", "name email address phone")
-    .populate("cook", "name email phone verificationRef")
+    .populate({
+      path: "cook",
+      select: "name email phone verificationRef",
+      populate: {
+        path: "verificationRef",
+        select: "address location",
+      },
+    })
     .populate("meals.meal", "name price");
 
   res.status(201).json({

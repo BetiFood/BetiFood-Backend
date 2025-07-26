@@ -94,6 +94,13 @@ function generateDonationReadyForPickupEmail({
 }) {
   const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
   const logoUrl = `https://res.cloudinary.com/${cloudName}/image/upload/v1751602440/with_bg_fbnbll.svg`;
+  // Prepare Google Maps link for cook location
+  let locationHtml = "غير محدد";
+  if (cook.location && cook.location.latitude && cook.location.longitude) {
+    const lat = cook.location.latitude;
+    const lng = cook.location.longitude;
+    locationHtml = `<a href="https://www.google.com/maps?q=${lat},${lng}" target="_blank" style="color: #007bff; text-decoration: underline;">اضغط هنا لعرض الموقع على الخريطة</a>`;
+  }
   return `
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -145,11 +152,7 @@ function generateDonationReadyForPickupEmail({
                               <li style="font-size:15px; color:#444;">🏠 العنوان: ${
                                 cook.address || "غير محدد"
                               }</li>
-                              <li style="font-size:15px; color:#444;">📍 الموقع: ${
-                                cook.location
-                                  ? `خط العرض: ${cook.location.latitude}, خط الطول: ${cook.location.longitude}`
-                                  : "غير محدد"
-                              }</li>
+                              <li style="font-size:15px; color:#444;">📍 الموقع: ${locationHtml}</li>
                             </ul>
                             <p style="margin: 0 0 10px 0; font-size: 15px; color: #555555; text-align: center;">يرجى التوجه إلى موقع الطباخ لاستلام الوجبات.</p>
                         </td>
