@@ -856,15 +856,11 @@ const acceptOrderByCook = asyncHandler(async (req, res) => {
   }
 
   // Only allow cook to accept if payment is paid for online payments
-  if (order.payment === "online") {
-    const Checkout = require("../models/Checkout");
-    const checkout = await Checkout.findOne({ checkoutId: order.checkoutId });
-    if (!checkout || checkout.paymentStatus !== "paid") {
-      return res.status(400).json({
-        success: false,
-        message: "لا يمكن للطباخ قبول الطلب حتى يتم دفع الطلب بنجاح.",
-      });
-    }
+  if (order.payment === "online" && order.paymentStatus !== "paid") {
+    return res.status(400).json({
+      success: false,
+      message: "لا يمكن للطباخ قبول الطلب حتى يتم دفع الطلب بنجاح.",
+    });
   }
   if (order.status !== "pending") {
     return res.status(400).json({
