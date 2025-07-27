@@ -9,6 +9,7 @@ const {
   updateMeal,
   deleteMeal,
   getMyMeals,
+  getMealsByChef
 } = require("../controllers/mealsController");
 
 const { protect, requireCookRole } = require("../middleware/authMiddleware");
@@ -37,5 +38,6 @@ router.put(
 );
 
 router.delete("/:id", protect, requireCookRole, deleteMeal);
+router.get("/by-chef/:chefId", getMealsByChef);
 
 module.exports = router;
