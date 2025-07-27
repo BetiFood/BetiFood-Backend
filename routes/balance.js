@@ -24,6 +24,20 @@ router.post(
   balanceController.withdrawBalance
 );
 
+// Withdrawal request routes (cook)
+router.post(
+  "/cook/withdrawal-request",
+  protect,
+  checkRole("cook"),
+  balanceController.requestWithdrawal
+);
+router.get(
+  "/cook/withdrawal-requests",
+  protect,
+  checkRole("cook"),
+  balanceController.getWithdrawalRequests
+);
+
 // Admin routes
 router.get(
   "/stats",
@@ -36,6 +50,20 @@ router.get(
   protect,
   checkRole("admin"),
   balanceController.getCookBalanceByAdmin
+);
+
+// Admin withdrawal request routes
+router.get(
+  "/withdrawal-requests",
+  protect,
+  checkRole("admin"),
+  balanceController.getAllWithdrawalRequests
+);
+router.patch(
+  "/withdrawal-requests/:requestId/process",
+  protect,
+  checkRole("admin"),
+  balanceController.processWithdrawalRequest
 );
 
 module.exports = router;

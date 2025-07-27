@@ -41,8 +41,7 @@ const categorySchema = new mongoose.Schema(
   }
 );
 
-// Index for better query performance
-categorySchema.index({ name: 1 });
+// Index for better query performance (name index is already created by unique: true)
 categorySchema.index({ "createdBy.userId": 1 });
 categorySchema.index({ isActive: 1 });
 

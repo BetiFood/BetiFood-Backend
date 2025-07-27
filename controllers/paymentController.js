@@ -353,11 +353,4 @@ exports.syncOrderPaymentStatus = async (req, res) => {
   }
 };
 
-module.exports = {
-  createPaymentIntent,
-  stripeWebhook,
-  getCheckoutStatus,
-  getAllCheckoutsForClient,
-  getOrderPaymentStatus,
-  syncOrderPaymentStatus,
-};
+// All functions are already exported using exports.functionName syntax
