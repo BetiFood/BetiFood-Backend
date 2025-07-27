@@ -601,6 +601,47 @@ async function getMostPopularMealsByCook(req, res) {
     });
   }
 }
+async function getMealsByChef(req, res) {
+  try {
+const chefId = req.params.chefId.trim();
+    // تأكيد إن الشيف موجود ومفعل
+    const chef = await User.findOne({
+      _id: chefId,
+      role: "cook",
+      isVerified: true,
+      isIdentityVerified: true,
+    }).select("_id name email image");
+
+    if (!chef) {
+      return res
+        .status(404)
+        .json({ message: "الشيف غير موجود أو غير مفعل" });
+    }
+
+    // جلب الوجبات الخاصة بالشيف
+    const meals = await Meal.find({ "cook.cookId": chefId });
+
+    // تعبئة بيانات الشيف داخل كل وجبة
+    const mealsWithCookInfo = await populateCookInfo(meals);
+
+    res.status(200).json({
+      chef: {
+        _id: chef._id,
+        name: chef.name,
+        email: chef.email,
+        image: chef.image,
+      },
+      meals: mealsWithCookInfo,
+    });
+  } catch (err) {
+    console.error("Error in getMealsByChef:", err);
+    res.status(500).json({
+      message: "فشل في جلب وجبات الشيف",
+      error: err.message,
+    });
+  }
+}
+
 
 async function getCookMealCategories(req, res) {
   try {
@@ -655,4 +696,5 @@ module.exports = {
   getTopRatedMealsByCook,
   getMostPopularMealsByCook,
   getCookMealCategories,
+  getMealsByChef
 };
