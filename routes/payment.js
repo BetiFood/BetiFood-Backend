@@ -1,7 +1,11 @@
 const express = require("express");
 const router = express.Router();
 const paymentController = require("../controllers/paymentController");
-const { protect, requireClientRole } = require("../middleware/authMiddleware");
+const {
+  protect,
+  requireClientRole,
+  requireAdminRole,
+} = require("../middleware/authMiddleware");
 
 router.post(
   "/create-payment-intent",
@@ -26,5 +30,20 @@ router.get(
 
 // GET endpoint for all checkouts for the authenticated client
 router.get("/checkout", protect, paymentController.getAllCheckoutsForClient);
+
+// GET endpoint for order payment status (with fallback check)
+router.get(
+  "/order/:orderId/payment-status",
+  protect,
+  paymentController.getOrderPaymentStatus
+);
+
+// POST endpoint for admin to sync all pending order payments
+router.post(
+  "/sync-order-payment-status",
+  protect,
+  requireAdminRole,
+  paymentController.syncOrderPaymentStatus
+);
 
 module.exports = router;

@@ -330,6 +330,19 @@ exports.updateDonationStatus = asyncHandler(async (req, res) => {
     });
   }
 
+  // التحقق من أن الطباخ يمكنه إلغاء التبرع فقط إذا كان في حالة "confirmed" أو "preparing"
+  if (
+    status === "cancelled" &&
+    donation.status !== "confirmed" &&
+    donation.status !== "preparing"
+  ) {
+    return res.status(400).json({
+      success: false,
+      message:
+        "لا يمكن للطباخ إلغاء التبرع في هذه الحالة. يمكن الإلغاء فقط عندما تكون الحالة 'مؤكد' أو 'جاري التحضير'",
+    });
+  }
+
   // تحديث الحالة
   donation.status = status;
   donation.logs.push({
@@ -337,6 +350,125 @@ exports.updateDonationStatus = asyncHandler(async (req, res) => {
     by: req.userId,
     note: `تم تحديث الحالة إلى ${status}`,
   });
+
+  // معالجة استرداد المال إذا كان الطباخ يلغي التبرع وكان الدفع قد تم
+  if (
+    status === "cancelled" &&
+    donation.paymentStatus === "paid" &&
+    donation.stripePaymentIntentId
+  ) {
+    try {
+      // إنشاء استرداد من Stripe
+      const refund = await stripe.refunds.create({
+        payment_intent: donation.stripePaymentIntentId,
+        reason: "requested_by_customer",
+        metadata: {
+          donationId: donation._id.toString(),
+          cancelledBy: "cook",
+          reason: "Cook cancelled the donation",
+        },
+      });
+
+      // تحديث حالة الدفع إلى مسترد
+      donation.paymentStatus = "refunded";
+      donation.logs.push({
+        action: "payment_refunded",
+        by: req.userId,
+        note: `تم استرداد المال بنجاح - Refund ID: ${refund.id}`,
+      });
+
+      // خصم المبلغ من رصيد الطباخ
+      const { addCreditToCook } = require("./balanceController");
+      try {
+        await addCreditToCook(donation.cook._id, {
+          type: "debit",
+          amount: -donation.amount, // خصم المبلغ
+          totalAmount: donation.amount,
+          description: `استرداد تبرع ملغي من قبل الطباخ - ${donation.meals.length} وجبة`,
+          donationId: donation._id,
+          paymentIntentId: donation.stripePaymentIntentId,
+        });
+        console.log(
+          `Deducted ${donation.amount} from cook ${donation.cook._id} balance due to cook cancellation`
+        );
+      } catch (balanceError) {
+        console.error(`Error deducting from cook balance:`, balanceError);
+      }
+
+      console.log(
+        `Refund processed for donation ${donation._id}: ${refund.id}`
+      );
+    } catch (refundError) {
+      console.error(
+        `Error processing refund for donation ${donation._id}:`,
+        refundError
+      );
+      donation.logs.push({
+        action: "refund_failed",
+        by: req.userId,
+        note: `فشل في استرداد المال: ${refundError.message}`,
+      });
+    }
+  }
+
+  // إرسال بريد إلكتروني عند إلغاء التبرع من قبل الطباخ
+  if (status === "cancelled") {
+    // إرسال بريد إلكتروني للجمعية
+    const charityEmailContent = `
+      <h2>إلغاء تبرع من قبل الطباخ</h2>
+      <p>مرحباً ${donation.toCharity.name}،</p>
+      <p>تم إلغاء التبرع التالي من قبل الطباخ:</p>
+      <ul>
+        <li>الطباخ: ${donation.cook.name} (${donation.cook.email})</li>
+        <li>المتبرع: ${donation.donor.name} (${donation.donor.email})</li>
+        <li>المبلغ: ${donation.amount} جنية مصري</li>
+        <li>الوجبات: ${donation.meals
+          .map((m) => `${m.meal.name} - ${m.quantity}`)
+          .join(", ")}</li>
+        <li>الرسالة: ${donation.message || "لا توجد رسالة"}</li>
+      </ul>
+      <p>سيتم استرداد المال للمتبرع تلقائياً.</p>
+      <p>شكراً لكم</p>
+    `;
+
+    try {
+      await sendEmail({
+        to: donation.toCharity.email,
+        subject: "إلغاء تبرع من قبل الطباخ",
+        html: charityEmailContent,
+      });
+    } catch (emailError) {
+      console.error("Error sending cancellation email to charity:", emailError);
+    }
+
+    // إرسال بريد إلكتروني للمتبرع
+    const donorEmailContent = `
+      <h2>إلغاء تبرع</h2>
+      <p>مرحباً ${donation.donor.name}،</p>
+      <p>تم إلغاء تبرعك من قبل الطباخ ${donation.cook.name}.</p>
+      <p>تفاصيل التبرع الملغي:</p>
+      <ul>
+        <li>الجمعية: ${donation.toCharity.name}</li>
+        <li>المبلغ: ${donation.amount} جنية مصري</li>
+        <li>الوجبات: ${donation.meals
+          .map((m) => `${m.meal.name} - ${m.quantity}`)
+          .join(", ")}</li>
+        <li>الرسالة: ${donation.message || "لا توجد رسالة"}</li>
+      </ul>
+      <p>سيتم استرداد المال إلى حسابك خلال 5-10 أيام عمل.</p>
+      <p>شكراً لتفهمكم</p>
+    `;
+
+    try {
+      await sendEmail({
+        to: donation.donor.email,
+        subject: "إلغاء تبرع من قبل الطباخ",
+        html: donorEmailContent,
+      });
+    } catch (emailError) {
+      console.error("Error sending cancellation email to donor:", emailError);
+    }
+  }
 
   if (status === "completed") {
     donation.completedAt = new Date();
@@ -656,23 +788,37 @@ exports.stripeDonationWebhook = asyncHandler(async (req, res) => {
   const sig = req.headers["stripe-signature"];
   let event;
 
+  console.log("Webhook received:", {
+    signature: sig ? "present" : "missing",
+    bodyLength: req.body ? req.body.length : 0,
+    webhookSecret: process.env.STRIPE_WEBHOOK_SECRET ? "present" : "missing",
+  });
+
   try {
     event = stripe.webhooks.constructEvent(
-      req.rawBody,
+      req.body,
       sig,
       process.env.STRIPE_WEBHOOK_SECRET
     );
+    console.log("Webhook event verified:", event.type);
   } catch (err) {
+    console.error("Webhook signature verification failed:", err.message);
     return res.status(400).send(`Webhook Error: ${err.message}`);
   }
 
   // Handle the event
   if (event.type === "payment_intent.succeeded") {
     const paymentIntent = event.data.object;
+    console.log("Payment intent succeeded:", {
+      paymentIntentId: paymentIntent.id,
+      metadata: paymentIntent.metadata,
+      amount: paymentIntent.amount,
+    });
 
     // Check if this is a donation payment
     if (paymentIntent.metadata && paymentIntent.metadata.type === "donation") {
       const donationId = paymentIntent.metadata.donationId;
+      console.log("Processing donation payment:", donationId);
 
       // Update donation payment status
       const donation = await Donation.findByIdAndUpdate(
@@ -745,9 +891,10 @@ exports.stripeDonationWebhook = asyncHandler(async (req, res) => {
 exports.getDonationPaymentStatus = asyncHandler(async (req, res) => {
   const { donationId } = req.params;
 
-  const donation = await Donation.findById(donationId).select(
-    "paymentStatus stripePaymentIntentId amount"
-  );
+  const donation = await Donation.findById(donationId)
+    .select("paymentStatus stripePaymentIntentId amount donor cook")
+    .populate("donor", "_id")
+    .populate("cook", "_id");
 
   if (!donation) {
     return res.status(404).json({
@@ -756,10 +903,349 @@ exports.getDonationPaymentStatus = asyncHandler(async (req, res) => {
     });
   }
 
+  // Check if user has permission to view this donation's payment status
+  const userIsDonor = donation.donor._id.toString() === req.userId.toString();
+  const userIsCook = donation.cook._id.toString() === req.userId.toString();
+  const userIsAdmin = req.user && req.user.role === "admin";
+
+  if (!userIsDonor && !userIsCook && !userIsAdmin) {
+    return res.status(403).json({
+      success: false,
+      message: "غير مصرح لك بالوصول إلى حالة دفع هذا التبرع",
+    });
+  }
+
+  // If payment status is still pending, check with Stripe directly
+  if (donation.paymentStatus === "pending" && donation.stripePaymentIntentId) {
+    try {
+      const paymentIntent = await stripe.paymentIntents.retrieve(
+        donation.stripePaymentIntentId
+      );
+
+      if (
+        paymentIntent.status === "succeeded" &&
+        donation.paymentStatus !== "paid"
+      ) {
+        // Update payment status in database
+        await Donation.findByIdAndUpdate(donationId, {
+          paymentStatus: "paid",
+          logs: {
+            $push: {
+              action: "payment_succeeded_manual_check",
+              by: donationId,
+              note: "تم تحديث حالة الدفع يدوياً بعد التحقق من Stripe",
+            },
+          },
+        });
+
+        // Add balance credit for cook (90/10 split)
+        const { addCreditToCook } = require("./balanceController");
+        const donationWithCook = await Donation.findById(donationId).populate(
+          "cook",
+          "name email"
+        );
+
+        if (donationWithCook) {
+          try {
+            await addCreditToCook(donationWithCook.cook._id, {
+              amount: donationWithCook.amount,
+              totalAmount: donationWithCook.amount,
+              description: `دفع تبرع - ${donationWithCook.meals.length} وجبة`,
+              donationId: donationWithCook._id,
+              paymentIntentId: paymentIntent.id,
+            });
+            console.log(
+              `Added credit to cook ${donationWithCook.cook._id}: ${donationWithCook.amount}`
+            );
+          } catch (error) {
+            console.error(
+              `Error adding credit to cook ${donationWithCook.cook._id}:`,
+              error
+            );
+          }
+        }
+
+        // Return updated status
+        return res.status(200).json({
+          success: true,
+          paymentStatus: "paid",
+          amount: donation.amount,
+          paymentIntentId: donation.stripePaymentIntentId,
+          updated: true,
+        });
+      }
+    } catch (stripeError) {
+      console.error("Error checking payment status with Stripe:", stripeError);
+    }
+  }
+
   res.status(200).json({
     success: true,
     paymentStatus: donation.paymentStatus,
     amount: donation.amount,
     paymentIntentId: donation.stripePaymentIntentId,
+  });
+});
+
+// Client cancellation of donation
+exports.cancelDonationByClient = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { reason } = req.body;
+
+  const donation = await Donation.findById(id)
+    .populate("toCharity", "name email")
+    .populate("donor", "name email")
+    .populate("cook", "name email")
+    .populate("meals.meal", "name price");
+
+  if (!donation) {
+    return res.status(404).json({
+      success: false,
+      message: "التبرع غير موجود",
+    });
+  }
+
+  // التحقق من أن المستخدم هو المتبرع
+  if (donation.donor._id.toString() !== req.userId.toString()) {
+    return res.status(403).json({
+      success: false,
+      message: "غير مصرح لك بإلغاء هذا التبرع",
+    });
+  }
+
+  // التحقق من أن الحالة تسمح بالإلغاء (pending أو confirmed فقط)
+  if (donation.status !== "pending" && donation.status !== "confirmed") {
+    return res.status(400).json({
+      success: false,
+      message:
+        "لا يمكن إلغاء التبرع في هذه الحالة. يمكن الإلغاء فقط عندما تكون الحالة 'في الانتظار' أو 'مؤكد'",
+    });
+  }
+
+  // التحقق من حالة الدفع
+  const needsRefund = donation.paymentStatus === "paid";
+  const originalStatus = donation.status;
+
+  // إلغاء التبرع
+  donation.status = "cancelled";
+  donation.logs.push({
+    action: "cancelled_by_client",
+    by: req.userId,
+    note: `تم إلغاء التبرع من قبل المتبرع${
+      reason ? ` - السبب: ${reason}` : ""
+    }`,
+  });
+
+  await donation.save();
+
+  // معالجة استرداد المال إذا كان الدفع قد تم
+  if (needsRefund && donation.stripePaymentIntentId) {
+    try {
+      // إنشاء استرداد من Stripe
+      const refund = await stripe.refunds.create({
+        payment_intent: donation.stripePaymentIntentId,
+        reason: "requested_by_customer",
+        metadata: {
+          donationId: donation._id.toString(),
+          cancelledBy: "client",
+          reason: reason || "No reason provided",
+        },
+      });
+
+      // تحديث حالة الدفع إلى مسترد
+      donation.paymentStatus = "refunded";
+      donation.logs.push({
+        action: "payment_refunded",
+        by: req.userId,
+        note: `تم استرداد المال بنجاح - Refund ID: ${refund.id}`,
+      });
+
+      // خصم المبلغ من رصيد الطباخ
+      const { addCreditToCook } = require("./balanceController");
+      try {
+        await addCreditToCook(donation.cook._id, {
+          type: "debit",
+          amount: -donation.amount, // خصم المبلغ
+          totalAmount: donation.amount,
+          description: `استرداد تبرع ملغي - ${donation.meals.length} وجبة`,
+          donationId: donation._id,
+          paymentIntentId: donation.stripePaymentIntentId,
+        });
+        console.log(
+          `Deducted ${donation.amount} from cook ${donation.cook._id} balance due to cancellation`
+        );
+      } catch (balanceError) {
+        console.error(`Error deducting from cook balance:`, balanceError);
+      }
+
+      await donation.save();
+      console.log(
+        `Refund processed for donation ${donation._id}: ${refund.id}`
+      );
+    } catch (refundError) {
+      console.error(
+        `Error processing refund for donation ${donation._id}:`,
+        refundError
+      );
+      donation.logs.push({
+        action: "refund_failed",
+        by: req.userId,
+        note: `فشل في استرداد المال: ${refundError.message}`,
+      });
+      await donation.save();
+    }
+  }
+
+  // إرسال بريد إلكتروني للجمعية
+  const charityEmailContent = `
+    <h2>إلغاء تبرع</h2>
+    <p>مرحباً ${donation.toCharity.name}،</p>
+    <p>تم إلغاء التبرع التالي من قبل المتبرع:</p>
+    <ul>
+      <li>المتبرع: ${donation.donor.name} (${donation.donor.email})</li>
+      <li>المبلغ: ${donation.amount} جنية مصري</li>
+      <li>الوجبات: ${donation.meals
+        .map((m) => `${m.meal.name} - ${m.quantity}`)
+        .join(", ")}</li>
+      <li>الرسالة: ${donation.message || "لا توجد رسالة"}</li>
+      <li>سبب الإلغاء: ${reason || "غير محدد"}</li>
+    </ul>
+    ${needsRefund ? "<p>سيتم استرداد المال للمتبرع تلقائياً.</p>" : ""}
+    <p>شكراً لكم</p>
+  `;
+
+  try {
+    await sendEmail({
+      to: donation.toCharity.email,
+      subject: "إلغاء تبرع",
+      html: charityEmailContent,
+    });
+  } catch (emailError) {
+    console.error("Error sending cancellation email to charity:", emailError);
+  }
+
+  // إرسال بريد إلكتروني للطباخ إذا كان التبرع مؤكد (قبل الإلغاء)
+  if (originalStatus === "confirmed") {
+    const cookEmailContent = `
+      <h2>إلغاء تبرع</h2>
+      <p>مرحباً ${donation.cook.name}،</p>
+      <p>تم إلغاء التبرع التالي من قبل المتبرع:</p>
+      <ul>
+        <li>الجمعية: ${donation.toCharity.name}</li>
+        <li>المبلغ: ${donation.amount} جنية مصري</li>
+        <li>الوجبات: ${donation.meals
+          .map((m) => `${m.meal.name} - ${m.quantity}`)
+          .join(", ")}</li>
+        <li>سبب الإلغاء: ${reason || "غير محدد"}</li>
+      </ul>
+      <p>لا حاجة لتحضير هذه الوجبات</p>
+    `;
+
+    try {
+      await sendEmail({
+        to: donation.cook.email,
+        subject: "إلغاء تبرع - لا حاجة للتحضير",
+        html: cookEmailContent,
+      });
+    } catch (emailError) {
+      console.error("Error sending cancellation email to cook:", emailError);
+    }
+  }
+
+  res.status(200).json({
+    success: true,
+    message: needsRefund
+      ? "تم إلغاء التبرع بنجاح وسيتم استرداد المال خلال 5-10 أيام عمل"
+      : "تم إلغاء التبرع بنجاح",
+    donation: formatDonationResponse(donation),
+  });
+});
+
+// Manual sync payment status for all pending donations (for admin/testing)
+exports.syncPaymentStatus = asyncHandler(async (req, res) => {
+  // Verify user is admin
+  const user = await User.findById(req.userId);
+  if (!user || user.role !== "admin") {
+    return res.status(403).json({
+      success: false,
+      message: "غير مصرح لك بالوصول إلى هذه البيانات",
+    });
+  }
+
+  const pendingDonations = await Donation.find({
+    paymentStatus: "pending",
+    stripePaymentIntentId: { $exists: true, $ne: null },
+  });
+
+  const results = {
+    total: pendingDonations.length,
+    updated: 0,
+    errors: 0,
+    details: [],
+  };
+
+  for (const donation of pendingDonations) {
+    try {
+      const paymentIntent = await stripe.paymentIntents.retrieve(
+        donation.stripePaymentIntentId
+      );
+
+      if (paymentIntent.status === "succeeded") {
+        // Update payment status
+        await Donation.findByIdAndUpdate(donation._id, {
+          paymentStatus: "paid",
+          logs: {
+            $push: {
+              action: "payment_succeeded_manual_sync",
+              by: req.userId,
+              note: "تم تحديث حالة الدفع يدوياً من خلال المزامنة",
+            },
+          },
+        });
+
+        // Add balance credit for cook
+        const { addCreditToCook } = require("./balanceController");
+        const donationWithCook = await Donation.findById(donation._id).populate(
+          "cook",
+          "name email"
+        );
+
+        if (donationWithCook) {
+          await addCreditToCook(donationWithCook.cook._id, {
+            amount: donationWithCook.amount,
+            totalAmount: donationWithCook.amount,
+            description: `دفع تبرع - ${donationWithCook.meals.length} وجبة`,
+            donationId: donationWithCook._id,
+            paymentIntentId: paymentIntent.id,
+          });
+        }
+
+        results.updated++;
+        results.details.push({
+          donationId: donation._id,
+          status: "updated",
+          paymentIntentId: donation.stripePaymentIntentId,
+        });
+      } else {
+        results.details.push({
+          donationId: donation._id,
+          status: "still_pending",
+          stripeStatus: paymentIntent.status,
+        });
+      }
+    } catch (error) {
+      results.errors++;
+      results.details.push({
+        donationId: donation._id,
+        status: "error",
+        error: error.message,
+      });
+    }
+  }
+
+  res.status(200).json({
+    success: true,
+    message: `تم مزامنة ${results.updated} تبرع من أصل ${results.total}`,
+    results,
   });
 });

@@ -7,7 +7,9 @@ const { ApiResponse } = require("../utils/response");
 const mongoose = require("mongoose");
 const Checkout = require("../models/Checkout");
 const Stripe = require("stripe");
-const stripe = process.env.STRIPE_SECRET_KEY ? Stripe(process.env.STRIPE_SECRET_KEY) : null;
+const stripe = process.env.STRIPE_SECRET_KEY
+  ? Stripe(process.env.STRIPE_SECRET_KEY)
+  : null;
 
 // Helper function to calculate distance between two points using Haversine formula
 const calculateDistance = (lat1, lng1, lat2, lng2) => {
@@ -462,6 +464,7 @@ async function createOrdersAndCheckout(
       cook_name: cookName,
       meals: orderMeals,
       payment: normalizedPayment,
+      paymentStatus: "pending",
       tax: orderTax,
       discount: orderDiscount,
       notes,
@@ -505,6 +508,13 @@ async function createOrdersAndCheckout(
     });
     stripeClientSecret = paymentIntent.client_secret;
     stripePaymentIntentId = paymentIntent.id;
+
+    // Update all orders with the payment intent ID
+    await Order.updateMany(
+      { _id: { $in: orderIds } },
+      { stripePaymentIntentId: stripePaymentIntentId }
+    );
+
     checkoutDoc = await Checkout.create({
       checkoutId,
       client_id: user._id || user.userId,

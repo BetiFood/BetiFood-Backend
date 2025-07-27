@@ -125,6 +125,14 @@ const orderSchema = new mongoose.Schema(
       enum: ["cash", "online"],
       default: "cash",
     },
+    paymentStatus: {
+      type: String,
+      enum: ["pending", "paid", "failed", "refunded"],
+      default: "pending",
+    },
+    stripePaymentIntentId: {
+      type: String,
+    },
     final_amount: {
       type: Number,
       min: [0, "المبلغ النهائي لا يمكن أن يكون سالب"],
