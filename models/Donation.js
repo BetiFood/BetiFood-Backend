@@ -35,6 +35,20 @@ const DonationSchema = new mongoose.Schema(
       default: "pending",
     },
 
+    // Payment fields
+    paymentMethod: {
+      type: String,
+      enum: ["online"],
+      default: "online",
+    },
+    paymentStatus: {
+      type: String,
+      enum: ["pending", "paid", "failed"],
+      default: "pending",
+    },
+    stripePaymentIntentId: { type: String },
+    stripeClientSecret: { type: String },
+
     // Email confirmation fields
     confirmationToken: { type: String },
     tokenExpiry: { type: Date },
@@ -67,5 +81,6 @@ DonationSchema.index({ donor: 1, status: 1 });
 DonationSchema.index({ toCharity: 1, status: 1 });
 DonationSchema.index({ cook: 1, status: 1 });
 DonationSchema.index({ confirmationToken: 1 });
+DonationSchema.index({ stripePaymentIntentId: 1 });
 
 module.exports = mongoose.model("Donation", DonationSchema);

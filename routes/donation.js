@@ -9,6 +9,8 @@ const {
   confirmDonationByToken,
   getDonationStats,
   createDonationFromCart,
+  stripeDonationWebhook,
+  getDonationPaymentStatus,
 } = require("../controllers/donationController");
 const { protect, requireAdminRole } = require("../middleware/authMiddleware");
 
@@ -32,5 +34,11 @@ router.get("/stats/overview", protect, getDonationStats);
 
 // إنشاء تبرع من سلة التسوق - للعملاء فقط
 router.post("/cart", protect, checkRole("client"), createDonationFromCart);
+
+// Stripe webhook for donations - no authentication required
+router.post("/webhook/stripe", stripeDonationWebhook);
+
+// Get donation payment status
+router.get("/:donationId/payment-status", protect, getDonationPaymentStatus);
 
 module.exports = router;

@@ -127,7 +127,7 @@ const addToCart = asyncHandler(async (req, res) => {
     cart.meals.push({
       mealId,
       mealName: meal.name,
-      cookId: meal.cook.cookId,
+      cookId: meal.cook.cookId, // Ensure this is only the ObjectId
       cookName: meal.cook.name,
       quantity,
       price: meal.price,

@@ -3,6 +3,50 @@ const Category = require("../models/Category");
 const cloudinary = require("cloudinary").v2;
 const User = require("../models/User");
 
+// Helper function to populate cook info from User model
+async function populateCookInfo(meals) {
+  if (!meals || meals.length === 0) return meals;
+
+  const cookIds = meals.map((meal) => meal.cook.cookId);
+  const cooks = await User.find({ _id: { $in: cookIds } }).select(
+    "_id name email image"
+  );
+
+  return meals.map((meal) => {
+    const cook = cooks.find(
+      (c) => c._id.toString() === meal.cook.cookId.toString()
+    );
+    return {
+      ...meal.toObject(),
+      cook: {
+        cookId: meal.cook.cookId,
+        name: cook ? cook.name : "Unknown Cook",
+        email: cook ? cook.email : "",
+        image: cook ? cook.image : "",
+      },
+    };
+  });
+}
+
+// Helper function to populate cook info for a single meal
+async function populateCookInfoForMeal(meal) {
+  if (!meal) return meal;
+
+  const cook = await User.findById(meal.cook.cookId).select(
+    "_id name email image"
+  );
+
+  return {
+    ...meal.toObject(),
+    cook: {
+      cookId: meal.cook.cookId,
+      name: cook ? cook.name : "Unknown Cook",
+      email: cook ? cook.email : "",
+      image: cook ? cook.image : "",
+    },
+  };
+}
+
 async function addMeal(req, res) {
   try {
     console.log("BODY:", req.body);
@@ -42,11 +86,9 @@ async function addMeal(req, res) {
       !Array.isArray(ingredients) ||
       ingredients.length === 0
     ) {
-      return res
-        .status(400)
-        .json({
-          message: "يجب إدخال جميع الحقول المطلوبة بما في ذلك المكونات",
-        });
+      return res.status(400).json({
+        message: "يجب إدخال جميع الحقول المطلوبة بما في ذلك المكونات",
+      });
     }
 
     const priceNum = Number(price);
@@ -105,7 +147,6 @@ async function addMeal(req, res) {
 
     const cook = {
       cookId: req.user._id,
-      name: req.user.name,
     };
 
     const meal = await Meal.create({
@@ -122,7 +163,12 @@ async function addMeal(req, res) {
       images: images,
     });
 
-    res.status(201).json({ message: "تم إضافة الوجبة بنجاح", meal });
+    // Populate cook info from User model
+    const mealWithCookInfo = await populateCookInfoForMeal(meal);
+
+    res
+      .status(201)
+      .json({ message: "تم إضافة الوجبة بنجاح", meal: mealWithCookInfo });
   } catch (err) {
     console.error("Error adding meal:", err);
     res.status(500).json({
@@ -190,19 +236,23 @@ async function getMeals(req, res) {
       .skip(skip)
       .limit(Number(limit));
 
-    // Filter meals by cook's verification status
+    // Filter meals by cook's verification status and populate cook info
     const cookIds = meals.map((meal) => meal.cook.cookId);
     const cooks = await User.find({
       _id: { $in: cookIds },
       isVerified: true,
       isIdentityVerified: true,
-    }).select("_id");
+    }).select("_id name email image");
+
     const allowedCookIds = new Set(cooks.map((c) => c._id.toString()));
     const filteredMeals = meals.filter((meal) =>
       allowedCookIds.has(meal.cook.cookId.toString())
     );
 
-    res.status(200).json(filteredMeals);
+    // Populate cook info from User model
+    const mealsWithCookInfo = await populateCookInfo(filteredMeals);
+
+    res.status(200).json(mealsWithCookInfo);
   } catch (err) {
     console.error("Error getting meals:", err);
     res.status(500).json({
@@ -222,7 +272,11 @@ async function getMealById(req, res) {
     if (!meal) {
       return res.status(404).json({ message: "الوجبة غير موجودة" });
     }
-    res.status(200).json(meal);
+
+    // Get cook info from User model
+    const mealWithCookInfo = await populateCookInfoForMeal(meal);
+
+    res.status(200).json(mealWithCookInfo);
   } catch (err) {
     console.error("Error getting meal by ID:", err);
     res.status(500).json({
@@ -248,13 +302,14 @@ async function getMealsByCategory(req, res) {
 
     const meals = await Meal.find({ "category.categoryId": categoryId });
 
-    // Filter meals by cook's verification status
+    // Filter meals by cook's verification status and populate cook info
     const cookIds = meals.map((meal) => meal.cook.cookId);
     const cooks = await User.find({
       _id: { $in: cookIds },
       isVerified: true,
       isIdentityVerified: true,
-    }).select("_id");
+    }).select("_id name email image");
+
     const allowedCookIds = new Set(cooks.map((c) => c._id.toString()));
     const filteredMeals = meals.filter((meal) =>
       allowedCookIds.has(meal.cook.cookId.toString())
@@ -264,7 +319,10 @@ async function getMealsByCategory(req, res) {
       return res.status(404).json({ message: "لا توجد وجبات في هذا التصنيف" });
     }
 
-    res.status(200).json(filteredMeals);
+    // Populate cook info from User model
+    const mealsWithCookInfo = await populateCookInfo(filteredMeals);
+
+    res.status(200).json(mealsWithCookInfo);
   } catch (err) {
     res.status(500).json({
       message: "فشل في جلب الوجبات حسب التصنيف",
@@ -382,7 +440,12 @@ async function updateMeal(req, res) {
     Object.assign(meal, req.body);
     await meal.save();
 
-    res.status(200).json({ message: "تم تحديث الوجبة بنجاح", meal });
+    // Get cook info from User model
+    const mealWithCookInfo = await populateCookInfoForMeal(meal);
+
+    res
+      .status(200)
+      .json({ message: "تم تحديث الوجبة بنجاح", meal: mealWithCookInfo });
   } catch (err) {
     console.error("Error updating meal:", err);
     res.status(500).json({
@@ -423,8 +486,13 @@ async function getMyMeals(req, res) {
         .status(403)
         .json({ message: "غير مصرح لك بالوصول إلى هذا المورد" });
     }
+
     const meals = await Meal.find({ "cook.cookId": req.user._id });
-    res.status(200).json(meals);
+
+    // Populate cook info from User model
+    const mealsWithCookInfo = await populateCookInfo(meals);
+
+    res.status(200).json(mealsWithCookInfo);
   } catch (err) {
     res
       .status(500)
@@ -454,8 +522,12 @@ async function getTopRatedMealsByCook(req, res) {
     const totalMeals = await require("../models/Meal").countDocuments({
       "cook.cookId": cookId,
     });
+
+    // Populate cook info from User model
+    const mealsWithCookInfo = await populateCookInfo(meals);
+
     res.status(200).json({
-      meals,
+      meals: mealsWithCookInfo,
       pagination: {
         currentPage: Number(page),
         totalPages: Math.ceil(totalMeals / limit),
@@ -501,8 +573,12 @@ async function getMostPopularMealsByCook(req, res) {
     const totalMeals = await require("../models/Meal").countDocuments({
       "cook.cookId": cookId,
     });
+
+    // Populate cook info from User model
+    const mealsWithCookInfo = await populateCookInfo(meals);
+
     res.status(200).json({
-      meals,
+      meals: mealsWithCookInfo,
       pagination: {
         currentPage: Number(page),
         totalPages: Math.ceil(totalMeals / limit),

@@ -8,6 +8,8 @@ const mongoose = require("mongoose");
 const crypto = require("crypto");
 const { sendEmail } = require("../utils/sendMail");
 const Cart = require("../models/Cart"); // Added Cart model import
+const Stripe = require("stripe");
+const stripe = Stripe(process.env.Stripe_Secret_key);
 const {
   generateDonationConfirmationEmail,
   generateDonationReadyForPickupEmail,
@@ -47,6 +49,11 @@ const formatDonationResponse = (donation) => {
     amount: donation.amount,
     message: donation.message,
     status: donation.status,
+    payment: {
+      method: donation.paymentMethod || "online",
+      status: donation.paymentStatus || "pending",
+      paymentIntentId: donation.stripePaymentIntentId,
+    },
     confirmedAt: donation.confirmedAt,
     completedAt: donation.completedAt,
     completionNote: donation.completionNote,
@@ -57,7 +64,7 @@ const formatDonationResponse = (donation) => {
 
 // إنشاء تبرع جديد - للعملاء فقط
 exports.createDonation = asyncHandler(async (req, res) => {
-  const { charityId, meals, message } = req.body;
+  const { charityId, meals, message, paymentMethod = "online" } = req.body;
 
   // التحقق من وجود الجمعية
   const charity = await Charity.findById(charityId);
@@ -73,6 +80,14 @@ exports.createDonation = asyncHandler(async (req, res) => {
     return res.status(400).json({
       success: false,
       message: "يجب تحديد وجبة واحدة على الأقل",
+    });
+  }
+
+  // التحقق من طريقة الدفع
+  if (paymentMethod !== "online") {
+    return res.status(400).json({
+      success: false,
+      message: "التبرعات تدعم الدفع الإلكتروني فقط",
     });
   }
 
@@ -98,13 +113,13 @@ exports.createDonation = asyncHandler(async (req, res) => {
     }
 
     // التحقق من أن جميع الوجبات لنفس الطباخ
-    if (cookId && cookId.toString() !== meal.cook.toString()) {
+    if (cookId && cookId.toString() !== meal.cook.cookId.toString()) {
       return res.status(400).json({
         success: false,
         message: "جميع الوجبات يجب أن تكون من نفس الطباخ",
       });
     }
-    cookId = meal.cook;
+    cookId = meal.cook.cookId;
 
     const mealTotal = meal.price * mealItem.quantity;
     totalAmount += mealTotal;
@@ -130,6 +145,9 @@ exports.createDonation = asyncHandler(async (req, res) => {
     message,
     confirmationToken,
     tokenExpiry,
+    status: "pending",
+    paymentMethod: "online",
+    paymentStatus: "pending",
     logs: [
       {
         action: "created",
@@ -139,10 +157,26 @@ exports.createDonation = asyncHandler(async (req, res) => {
     ],
   });
 
+  // إنشاء Stripe Payment Intent
+  const amountInCents = Math.round(totalAmount * 100);
+  const paymentIntent = await stripe.paymentIntents.create({
+    amount: amountInCents,
+    currency: "usd",
+    metadata: {
+      donationId: donation._id.toString(),
+      type: "donation",
+    },
+  });
+
+  // تحديث التبرع بمعلومات الدفع
+  donation.stripePaymentIntentId = paymentIntent.id;
+  donation.stripeClientSecret = paymentIntent.client_secret;
+  await donation.save();
+
   // إرسال بريد إلكتروني للجمعية
   const confirmationUrl = `${
     process.env.FRONTEND_Production_URL || process.env.FRONTEND_Development_URL
-  }/confirm-donation?token=${confirmationToken}`;
+  }/donations/confirm/${donation.confirmationToken}`;
 
   const emailContent = generateDonationConfirmationEmail({
     charityName: charity.name,
@@ -165,13 +199,22 @@ exports.createDonation = asyncHandler(async (req, res) => {
   const populatedDonation = await Donation.findById(donation._id)
     .populate("donor", "name email")
     .populate("toCharity", "name email address phone")
-    .populate("cook", "name email phone verificationRef")
+    .populate({
+      path: "cook",
+      select: "name email phone verificationRef",
+      populate: {
+        path: "verificationRef",
+        select: "address location",
+      },
+    })
     .populate("meals.meal", "name price");
 
   res.status(201).json({
     success: true,
     message: "تم إنشاء التبرع بنجاح وتم إرسال رابط التأكيد للجمعية",
     donation: formatDonationResponse(populatedDonation),
+    stripeClientSecret: paymentIntent.client_secret,
+    paymentIntentId: paymentIntent.id,
   });
 });
 
@@ -268,6 +311,14 @@ exports.updateDonationStatus = asyncHandler(async (req, res) => {
     return res.status(403).json({
       success: false,
       message: "غير مصرح لك بتحديث هذا التبرع",
+    });
+  }
+
+  // التحقق من حالة الدفع
+  if (donation.paymentStatus !== "paid") {
+    return res.status(400).json({
+      success: false,
+      message: "لا يمكن للطباخ قبول التبرع قبل إتمام الدفع الإلكتروني.",
     });
   }
 
@@ -526,10 +577,28 @@ exports.createDonationFromCart = asyncHandler(async (req, res) => {
     amount: totalAmount,
     message: message || "",
     status: "pending",
+    paymentMethod: "online",
+    paymentStatus: "pending",
     confirmationToken: crypto.randomBytes(32).toString("hex"),
     tokenExpiry: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 ساعة
   });
 
+  await donation.save();
+
+  // إنشاء Stripe Payment Intent
+  const amountInCents = Math.round(totalAmount * 100);
+  const paymentIntent = await stripe.paymentIntents.create({
+    amount: amountInCents,
+    currency: "usd",
+    metadata: {
+      donationId: donation._id.toString(),
+      type: "donation",
+    },
+  });
+
+  // تحديث التبرع بمعلومات الدفع
+  donation.stripePaymentIntentId = paymentIntent.id;
+  donation.stripeClientSecret = paymentIntent.client_secret;
   await donation.save();
 
   // إرسال بريد إلكتروني للجمعية
@@ -577,5 +646,120 @@ exports.createDonationFromCart = asyncHandler(async (req, res) => {
     success: true,
     message: "تم إنشاء التبرع بنجاح وتم إرسال رابط التأكيد للجمعية",
     donation: formatDonationResponse(populatedDonation),
+    stripeClientSecret: paymentIntent.client_secret,
+    paymentIntentId: paymentIntent.id,
+  });
+});
+
+// Stripe webhook handler for donations
+exports.stripeDonationWebhook = asyncHandler(async (req, res) => {
+  const sig = req.headers["stripe-signature"];
+  let event;
+
+  try {
+    event = stripe.webhooks.constructEvent(
+      req.rawBody,
+      sig,
+      process.env.STRIPE_WEBHOOK_SECRET
+    );
+  } catch (err) {
+    return res.status(400).send(`Webhook Error: ${err.message}`);
+  }
+
+  // Handle the event
+  if (event.type === "payment_intent.succeeded") {
+    const paymentIntent = event.data.object;
+
+    // Check if this is a donation payment
+    if (paymentIntent.metadata && paymentIntent.metadata.type === "donation") {
+      const donationId = paymentIntent.metadata.donationId;
+
+      // Update donation payment status
+      const donation = await Donation.findByIdAndUpdate(
+        donationId,
+        {
+          paymentStatus: "paid",
+          logs: {
+            $push: {
+              action: "payment_succeeded",
+              by: donationId, // Using donationId as reference
+              note: "تم دفع التبرع بنجاح",
+            },
+          },
+        },
+        { new: true }
+      ).populate("cook", "name email");
+
+      if (donation) {
+        console.log(`Donation ${donationId} payment succeeded`);
+
+        // Add balance credit for cook (90/10 split)
+        const { addCreditToCook } = require("./balanceController");
+
+        try {
+          await addCreditToCook(donation.cook._id, {
+            amount: donation.amount,
+            totalAmount: donation.amount,
+            description: `دفع تبرع - ${donation.meals.length} وجبة`,
+            donationId: donation._id,
+            paymentIntentId: paymentIntent.id,
+          });
+          console.log(
+            `Added credit to cook ${donation.cook._id}: ${donation.amount}`
+          );
+        } catch (error) {
+          console.error(
+            `Error adding credit to cook ${donation.cook._id}:`,
+            error
+          );
+        }
+      }
+    }
+  } else if (event.type === "payment_intent.payment_failed") {
+    const paymentIntent = event.data.object;
+
+    // Check if this is a donation payment
+    if (paymentIntent.metadata && paymentIntent.metadata.type === "donation") {
+      const donationId = paymentIntent.metadata.donationId;
+
+      // Update donation payment status
+      await Donation.findByIdAndUpdate(donationId, {
+        paymentStatus: "failed",
+        logs: {
+          $push: {
+            action: "payment_failed",
+            by: donationId,
+            note: "فشل في دفع التبرع",
+          },
+        },
+      });
+
+      console.log(`Donation ${donationId} payment failed`);
+    }
+  }
+
+  res.json({ received: true });
+});
+
+// Get donation payment status
+exports.getDonationPaymentStatus = asyncHandler(async (req, res) => {
+  const { donationId } = req.params;
+
+  const donation = await Donation.findById(donationId).select(
+    "paymentStatus stripePaymentIntentId amount"
+  );
+
+  if (!donation) {
+    return res.status(404).json({
+      success: false,
+      message: "التبرع غير موجود",
+    });
+  }
+
+  res.status(200).json({
+    success: true,
+    paymentStatus: donation.paymentStatus,
+    amount: donation.amount,
+    paymentIntentId: donation.stripePaymentIntentId,
   });
 });

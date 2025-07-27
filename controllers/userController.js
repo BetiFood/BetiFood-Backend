@@ -237,8 +237,31 @@ async function getUserProfile(req, res) {
       return res.status(404).json({ message: "المستخدم غير موجود" });
     }
 
+    // If user is a cook, get balance information
+    let balanceInfo = null;
+    if (user.role === "cook") {
+      const Balance = require("../models/Balance");
+      const balance = await Balance.findOne({ cookId: userId });
+      if (balance) {
+        balanceInfo = {
+          currentBalance: balance.currentBalance,
+          totalEarned: balance.totalEarned,
+          totalWithdrawn: balance.totalWithdrawn,
+          platformFees: balance.platformFees,
+          lastUpdated: balance.lastUpdated,
+        };
+      }
+    }
+
+    // Transform user data and show balance for cooks
+    const userData = transformUserData(user);
+    if (user.role === "cook") {
+      userData._showBalance = true; // This will allow balance to be shown
+    }
+
     res.status(200).json({
-      user: transformUserData(user),
+      user: userData,
+      balance: balanceInfo,
     });
   } catch (err) {
     console.error("Error getting user profile:", err);

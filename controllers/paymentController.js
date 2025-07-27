@@ -45,11 +45,54 @@ exports.stripeWebhook = async (req, res) => {
       { new: true }
     );
     if (checkout) {
-      // Optionally, update all related orders
+      // Update all related orders
       await Order.updateMany(
         { _id: { $in: checkout.orders } },
         { $set: { payment: "online", status: "pending" } }
       );
+
+      // Add balance credits for cooks (90/10 split)
+      const { addCreditToCook } = require("./balanceController");
+
+      // Get all orders for this checkout
+      const orders = await Order.find({
+        _id: { $in: checkout.orders },
+      }).populate("cook_id", "name email");
+
+      // Group orders by cook and add credits
+      const cookOrders = {};
+      for (const order of orders) {
+        const cookId = order.cook_id._id.toString();
+        if (!cookOrders[cookId]) {
+          cookOrders[cookId] = {
+            cook: order.cook_id,
+            orders: [],
+            totalAmount: 0,
+          };
+        }
+        cookOrders[cookId].orders.push(order);
+        cookOrders[cookId].totalAmount += order.final_amount;
+      }
+
+      // Add credits for each cook
+      for (const cookId in cookOrders) {
+        const cookData = cookOrders[cookId];
+        try {
+          await addCreditToCook(cookId, {
+            amount: cookData.totalAmount,
+            totalAmount: cookData.totalAmount,
+            description: `دفع طلب - ${cookData.orders.length} طلب`,
+            orderId: cookData.orders[0]._id, // Reference to first order
+            checkoutId: checkoutId,
+            paymentIntentId: paymentIntent.id,
+          });
+          console.log(
+            `Added credit to cook ${cookId}: ${cookData.totalAmount}`
+          );
+        } catch (error) {
+          console.error(`Error adding credit to cook ${cookId}:`, error);
+        }
+      }
     }
   } else if (event.type === "payment_intent.payment_failed") {
     const paymentIntent = event.data.object;

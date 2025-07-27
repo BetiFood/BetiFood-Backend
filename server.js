@@ -14,6 +14,7 @@ const orderRoutes = require("./routes/order.js");
 const charityRoutes = require("./routes/charity.js");
 const paymentRoutes = require("./routes/payment.js");
 const donationRoutes = require("./routes/donation.js");
+const balanceRoutes = require("./routes/balance.js");
 
 const app = express();
 const port = 3000;
@@ -44,6 +45,7 @@ app.use("/api/delivery", require("./routes/delivery"));
 app.use("/api/charity", charityRoutes);
 app.use("/api/donations", donationRoutes);
 app.use("/api", paymentRoutes);
+app.use("/api/balance", balanceRoutes);
 
 app.use("/api/admin", adminRoutes);
 app.use("/api/categories", categoryRoutes);
