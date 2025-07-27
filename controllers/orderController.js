@@ -7,7 +7,7 @@ const { ApiResponse } = require("../utils/response");
 const mongoose = require("mongoose");
 const Checkout = require("../models/Checkout");
 const Stripe = require("stripe");
-const stripe = Stripe(process.env.Stripe_Secret_key);
+const stripe = process.env.STRIPE_SECRET_KEY ? Stripe(process.env.STRIPE_SECRET_KEY) : null;
 
 // Helper function to calculate distance between two points using Haversine formula
 const calculateDistance = (lat1, lng1, lat2, lng2) => {
@@ -490,6 +490,12 @@ async function createOrdersAndCheckout(
   let stripePaymentIntentId = null;
 
   if (normalizedPayment === "online") {
+    if (!stripe) {
+      return {
+        success: false,
+        message: "خدمة الدفع الإلكتروني غير متاحة حالياً",
+      };
+    }
     // Stripe expects amount in cents
     const amountInCents = Math.round(totalAmount * 100);
     const paymentIntent = await stripe.paymentIntents.create({

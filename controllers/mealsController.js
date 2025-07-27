@@ -188,7 +188,7 @@ async function getMeals(req, res) {
       category,
       sort,
       page = 1,
-      limit = 10,
+      limit = 15,
       query, // for search
     } = req.query;
 
@@ -229,8 +229,8 @@ async function getMeals(req, res) {
 
     // Pagination
     const skip = (page - 1) * limit;
-
-    // Only show meals for cooks who are verified and isIdentityVerified (public/client)
+    // جلب كل الوجبات
+    const totalMeals = await Meal.countDocuments(filter);
     const meals = await Meal.find(filter)
       .sort(sortOption)
       .skip(skip)
