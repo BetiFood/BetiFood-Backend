@@ -7,8 +7,8 @@ const { ApiResponse } = require("../utils/response");
 const mongoose = require("mongoose");
 const Checkout = require("../models/Checkout");
 const Stripe = require("stripe");
-const stripe = process.env.STRIPE_SECRET_KEY
-  ? Stripe(process.env.STRIPE_SECRET_KEY)
+const stripe = process.env.Stripe_Secret_key
+  ? Stripe(process.env.Stripe_Secret_key)
   : null;
 
 // Helper function to calculate distance between two points using Haversine formula

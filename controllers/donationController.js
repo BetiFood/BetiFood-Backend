@@ -788,21 +788,26 @@ exports.stripeDonationWebhook = asyncHandler(async (req, res) => {
   const sig = req.headers["stripe-signature"];
   let event;
 
-  console.log("Webhook received:", {
+  console.log("Donation webhook received:", {
     signature: sig ? "present" : "missing",
     bodyLength: req.body ? req.body.length : 0,
-    webhookSecret: process.env.STRIPE_WEBHOOK_SECRET ? "present" : "missing",
+    webhookSecret: process.env.STRIPE_WEBHOOK_SECRET_DONATIONS
+      ? "present"
+      : "missing",
   });
 
   try {
     event = stripe.webhooks.constructEvent(
       req.body,
       sig,
-      process.env.STRIPE_WEBHOOK_SECRET
+      process.env.STRIPE_WEBHOOK_SECRET_DONATIONS
     );
-    console.log("Webhook event verified:", event.type);
+    console.log("Donation webhook event verified:", event.type);
   } catch (err) {
-    console.error("Webhook signature verification failed:", err.message);
+    console.error(
+      "Donation webhook signature verification failed:",
+      err.message
+    );
     return res.status(400).send(`Webhook Error: ${err.message}`);
   }
 

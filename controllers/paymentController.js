@@ -29,14 +29,16 @@ exports.stripeWebhook = async (req, res) => {
   console.log("Order webhook received:", {
     signature: sig ? "present" : "missing",
     bodyLength: req.body ? req.body.length : 0,
-    webhookSecret: process.env.STRIPE_WEBHOOK_SECRET ? "present" : "missing",
+    webhookSecret: process.env.STRIPE_WEBHOOK_SECRET_ORDERS
+      ? "present"
+      : "missing",
   });
 
   try {
     event = stripe.webhooks.constructEvent(
       req.body,
       sig,
-      process.env.STRIPE_WEBHOOK_SECRET
+      process.env.STRIPE_WEBHOOK_SECRET_ORDERS
     );
     console.log("Order webhook event verified:", event.type);
   } catch (err) {
