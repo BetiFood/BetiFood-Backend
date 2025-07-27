@@ -83,7 +83,8 @@ const formatOrderResponse = (order) => {
     },
     payment: {
       method: order.payment, // English only
-      status: "pending", // Simplified for now
+      status: order.paymentStatus || "pending", // Use actual payment status from database
+      paymentIntentId: order.stripePaymentIntentId, // Include Stripe payment intent ID
     },
     status: order.status, // Return status in English only
     notes: order.notes,
