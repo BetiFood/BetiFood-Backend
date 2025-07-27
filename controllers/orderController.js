@@ -803,6 +803,58 @@ const acceptOrderByCook = asyncHandler(async (req, res) => {
       message: "الطلب غير موجود",
     });
   }
+
+  // Automatic payment status check - if payment is pending and has Stripe ID, check with Stripe
+  if (
+    order.paymentStatus === "pending" &&
+    order.stripePaymentIntentId &&
+    stripe
+  ) {
+    try {
+      const paymentIntent = await stripe.paymentIntents.retrieve(
+        order.stripePaymentIntentId
+      );
+
+      if (
+        paymentIntent.status === "succeeded" &&
+        order.paymentStatus !== "paid"
+      ) {
+        // Update payment status in database
+        await Order.findByIdAndUpdate(order._id, {
+          paymentStatus: "paid",
+          payment: "online",
+        });
+
+        // Add balance credit for cook (90/10 split)
+        const { addCreditToCook } = require("./balanceController");
+
+        try {
+          await addCreditToCook(order.cook_id._id, {
+            amount: order.final_amount,
+            totalAmount: order.final_amount,
+            description: `دفع طلب - 1 طلب`,
+            orderId: order._id,
+            paymentIntentId: paymentIntent.id,
+          });
+          console.log(
+            `✅ Auto-updated payment status for order ${order._id}: ${order.final_amount}`
+          );
+        } catch (error) {
+          console.error(
+            `❌ Error adding credit to cook ${order.cook_id._id}:`,
+            error
+          );
+        }
+
+        // Update the order object for response
+        order.paymentStatus = "paid";
+        order.payment = "online";
+      }
+    } catch (stripeError) {
+      console.error("Error checking payment status with Stripe:", stripeError);
+    }
+  }
+
   // Only allow cook to accept if payment is paid for online payments
   if (order.payment === "online") {
     const Checkout = require("../models/Checkout");

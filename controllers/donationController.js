@@ -314,6 +314,65 @@ exports.updateDonationStatus = asyncHandler(async (req, res) => {
     });
   }
 
+  // Automatic payment status check - if payment is pending and has Stripe ID, check with Stripe
+  if (
+    donation.paymentStatus === "pending" &&
+    donation.stripePaymentIntentId &&
+    stripe
+  ) {
+    try {
+      const paymentIntent = await stripe.paymentIntents.retrieve(
+        donation.stripePaymentIntentId
+      );
+
+      if (
+        paymentIntent.status === "succeeded" &&
+        donation.paymentStatus !== "paid"
+      ) {
+        // Update payment status in database
+        await Donation.findByIdAndUpdate(donation._id, {
+          paymentStatus: "paid",
+          logs: {
+            $push: {
+              action: "payment_succeeded_auto_check",
+              by: donation._id,
+              note: "تم تحديث حالة الدفع تلقائياً بعد التحقق من Stripe",
+            },
+          },
+        });
+
+        // Add balance credit for cook (90/10 split)
+        const { addCreditToCook } = require("./balanceController");
+
+        try {
+          await addCreditToCook(donation.cook._id, {
+            amount: donation.amount,
+            totalAmount: donation.amount,
+            description: `دفع تبرع - ${donation.meals.length} وجبة`,
+            donationId: donation._id,
+            paymentIntentId: paymentIntent.id,
+          });
+          console.log(
+            `✅ Auto-updated donation payment status for ${donation._id}: ${donation.amount}`
+          );
+        } catch (error) {
+          console.error(
+            `❌ Error adding credit to cook ${donation.cook._id}:`,
+            error
+          );
+        }
+
+        // Update the donation object for response
+        donation.paymentStatus = "paid";
+      }
+    } catch (stripeError) {
+      console.error(
+        "Error checking donation payment status with Stripe:",
+        stripeError
+      );
+    }
+  }
+
   // التحقق من حالة الدفع
   if (donation.paymentStatus !== "paid") {
     return res.status(400).json({
