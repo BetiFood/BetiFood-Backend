@@ -188,13 +188,16 @@ async function getMeals(req, res) {
       category,
       sort,
       page = 1,
-      limit = 15,
-      query, // for search
+      limit = 6,
+      query,
     } = req.query;
+
+    const pageNumber = Number(page) || 1;
+    const limitNumber = Number(limit) || 6;
+    const skip = (pageNumber - 1) * limitNumber;
 
     const filter = {};
 
-    // Search by name or description
     if (query) {
       filter.$or = [
         { name: { $regex: query, $options: "i" } },
@@ -202,7 +205,6 @@ async function getMeals(req, res) {
       ];
     }
 
-    // Filter by category name (case-insensitive)
     if (category) {
       filter["category.categoryName"] = {
         $regex: `^${category.trim()}$`,
@@ -210,7 +212,6 @@ async function getMeals(req, res) {
       };
     }
 
-    // Sorting
     let sortOption = {};
     switch (sort) {
       case "price_asc":
@@ -227,32 +228,34 @@ async function getMeals(req, res) {
         break;
     }
 
-    // Pagination
-    const skip = (page - 1) * limit;
-    // جلب كل الوجبات
+    const verifiedCooks = await User.find({
+      isVerified: true,
+      isIdentityVerified: true,
+    }).select("_id");
+
+    const verifiedCookIds = verifiedCooks.map((c) => c._id);
+    filter["cook.cookId"] = { $in: verifiedCookIds };
+
     const totalMeals = await Meal.countDocuments(filter);
+
     const meals = await Meal.find(filter)
       .sort(sortOption)
       .skip(skip)
-      .limit(Number(limit));
+      .limit(limitNumber);
 
-    // Filter meals by cook's verification status and populate cook info
-    const cookIds = meals.map((meal) => meal.cook.cookId);
-    const cooks = await User.find({
-      _id: { $in: cookIds },
-      isVerified: true,
-      isIdentityVerified: true,
-    }).select("_id name email image");
+    const mealsWithCookInfo = await populateCookInfo(meals);
+    const totalPages = Math.ceil(totalMeals / limitNumber);
 
-    const allowedCookIds = new Set(cooks.map((c) => c._id.toString()));
-    const filteredMeals = meals.filter((meal) =>
-      allowedCookIds.has(meal.cook.cookId.toString())
-    );
-
-    // Populate cook info from User model
-    const mealsWithCookInfo = await populateCookInfo(filteredMeals);
-
-    res.status(200).json(mealsWithCookInfo);
+    res.status(200).json({
+      meals: mealsWithCookInfo,
+      pagination: {
+        currentPage: pageNumber,
+        totalPages,
+        totalMeals,
+        hasNext: pageNumber < totalPages,
+        hasPrev: pageNumber > 1,
+      },
+    });
   } catch (err) {
     console.error("Error getting meals:", err);
     res.status(500).json({
