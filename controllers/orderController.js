@@ -1295,4 +1295,5 @@ module.exports = {
   checkDeliveryAvailability,
   formatOrderResponse,
   createOrdersAndCheckout,
+  calculateDistance,
 };
